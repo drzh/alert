@@ -1,6 +1,6 @@
 # Alert
 
-A modular alert runner for the jobs that previously lived as one-off scripts under `/home/celaeno/alert`.
+A modular alert runner for the jobs that previously lived as one-off scripts under `alert`.
 
 The repo is organized so future maintenance stays predictable:
 
