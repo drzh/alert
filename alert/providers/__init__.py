@@ -1,0 +1,35 @@
+"""Built-in alert providers."""
+
+from .ariss import PROVIDER as ARISS_PROVIDER
+from .aurora import PROVIDER as AURORA_PROVIDER
+from .aurora_gfz import PROVIDER as AURORA_GFZ_PROVIDER
+from .bz import PROVIDER as BZ_PROVIDER
+from .cc import PROVIDER as CC_PROVIDER
+from .cl import PROVIDER as CL_PROVIDER
+from .ha_comet import PROVIDER as HA_COMET_PROVIDER
+from .rocketlaunch import PROVIDER as ROCKETLAUNCH_PROVIDER
+from .sd import PROVIDER as SD_PROVIDER
+from .solar_prominence import PROVIDER as SOLAR_PROMINENCE_PROVIDER
+from .solarspot import PROVIDER as SOLARSPOT_PROVIDER
+from .spaceweather_com import PROVIDER as SPACEWEATHER_COM_PROVIDER
+from .spaceweather_gov import PROVIDER as SPACEWEATHER_GOV_PROVIDER
+from .spaceweather_gov_alerts import PROVIDER as SPACEWEATHER_GOV_ALERTS_PROVIDER
+
+BUILTIN_PROVIDERS = (
+    ARISS_PROVIDER,
+    AURORA_PROVIDER,
+    AURORA_GFZ_PROVIDER,
+    BZ_PROVIDER,
+    CC_PROVIDER,
+    CL_PROVIDER,
+    HA_COMET_PROVIDER,
+    ROCKETLAUNCH_PROVIDER,
+    SD_PROVIDER,
+    SOLAR_PROMINENCE_PROVIDER,
+    SOLARSPOT_PROVIDER,
+    SPACEWEATHER_COM_PROVIDER,
+    SPACEWEATHER_GOV_PROVIDER,
+    SPACEWEATHER_GOV_ALERTS_PROVIDER,
+)
+
+__all__ = ["BUILTIN_PROVIDERS"]
