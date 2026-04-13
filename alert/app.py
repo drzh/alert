@@ -44,10 +44,7 @@ class AlertRunner:
         try:
             for target in source.targets:
                 try:
-                    content = self.http_client.fetch_text(
-                        target.url,
-                        timeout_seconds=target.timeout_seconds,
-                    )
+                    content = provider.fetch_content(target, self.http_client)
                     items = provider.parse_items(target, content)
                     history = repository.get_history(source.name, target.url)
                 except Exception as exc:

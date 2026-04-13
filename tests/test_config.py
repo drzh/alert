@@ -83,6 +83,8 @@ provider = "solar_prominence"
 url = "./data/current.txt"
 state_file = "state/solar_prominence.txt"
 attachment_path = "images/prominence.png"
+project_dir = "../atmospheric_optics"
+download_dir = "cache/atmospheric_optics"
 """,
         encoding="utf-8",
     )
@@ -93,3 +95,5 @@ attachment_path = "images/prominence.png"
     assert target.url == (tmp_path / "data" / "current.txt").resolve().as_uri()
     assert target.options["state_file"] == str((tmp_path / "state" / "solar_prominence.txt").resolve())
     assert target.options["attachment_path"] == str((tmp_path / "images" / "prominence.png").resolve())
+    assert target.options["project_dir"] == str((tmp_path.parent / "atmospheric_optics").resolve())
+    assert target.options["download_dir"] == str((tmp_path / "cache" / "atmospheric_optics").resolve())

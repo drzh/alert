@@ -22,7 +22,8 @@ ROW_LABELS = (
     "18-21UT",
     "21-00UT",
 )
-THREE_HOUR_PATTERN = re.compile(r"The greatest expected 3 hr Kp for [^\n]+ is (\d+)")
+THREE_HOUR_PATTERN = re.compile(r"The greatest expected 3 hr Kp for [^\n]+ is (\d+(?:\.\d+)?)")
+KP_VALUE_PATTERN = re.compile(r"\d+(?:\.\d+)?")
 
 
 class AuroraProvider(AlertProvider):
@@ -31,7 +32,7 @@ class AuroraProvider(AlertProvider):
 
     def parse_items(self, target: TargetConfig, content: str) -> list[AlertItem]:
         three_hour_match = THREE_HOUR_PATTERN.search(content)
-        three_hour_max = int(three_hour_match.group(1)) if three_hour_match else None
+        three_hour_max = float(three_hour_match.group(1)) if three_hour_match else None
         table_lines, table_values = _extract_table(content)
         if three_hour_max is None and not table_values:
             return []
@@ -132,10 +133,10 @@ class AuroraProvider(AlertProvider):
                 table_output_path.write_text("\n".join(table_lines) + "\n", encoding="utf-8")
 
 
-def _extract_table(content: str) -> tuple[list[str], list[tuple[int, int, int]]]:
+def _extract_table(content: str) -> tuple[list[str], list[tuple[float, float, float]]]:
     lines = content.splitlines()
     table_lines: list[str] = []
-    table_values: list[tuple[int, int, int]] = []
+    table_values: list[tuple[float, float, float]] = []
     start_index: int | None = None
 
     for index, line in enumerate(lines):
@@ -154,13 +155,16 @@ def _extract_table(content: str) -> tuple[list[str], list[tuple[int, int, int]]]
             continue
 
         if not table_lines:
-            table_lines.append(stripped)
+            table_lines.append(line.rstrip())
             continue
 
-        if any(stripped.startswith(label) for label in ROW_LABELS):
-            table_lines.append(stripped)
-            values = [int(value) for value in re.findall(r"\b\d+\b", stripped)][-3:]
-            if len(values) == 3:
+        row_label = next((label for label in ROW_LABELS if stripped.startswith(label)), None)
+        if row_label is not None:
+            table_lines.append(line.rstrip())
+            row_text = stripped[len(row_label):]
+            row_text = re.sub(r"\([^)]*\)", "", row_text)
+            values = [float(value) for value in KP_VALUE_PATTERN.findall(row_text)]
+            if len(values) >= 3:
                 table_values.append((values[0], values[1], values[2]))
             if stripped.startswith("21-00UT"):
                 break
@@ -169,12 +173,12 @@ def _extract_table(content: str) -> tuple[list[str], list[tuple[int, int, int]]]
         if table_values:
             break
 
-    return table_lines, table_values
+    return [line.strip() for line in table_lines], table_values
 
 
-def _compute_day_maxima(table_values: list[tuple[int, int, int]]) -> tuple[int, int, int]:
+def _compute_day_maxima(table_values: list[tuple[float, float, float]]) -> tuple[float, float, float]:
     if not table_values:
-        return (0, 0, 0)
+        return (0.0, 0.0, 0.0)
     columns = list(zip(*table_values))
     return tuple(max(column) for column in columns)
 

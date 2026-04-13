@@ -1,6 +1,7 @@
 """Built-in alert providers."""
 
 from .ariss import PROVIDER as ARISS_PROVIDER
+from .atmospheric_optics import PROVIDER as ATMOSPHERIC_OPTICS_PROVIDER
 from .aurora import PROVIDER as AURORA_PROVIDER
 from .aurora_gfz import PROVIDER as AURORA_GFZ_PROVIDER
 from .bz import PROVIDER as BZ_PROVIDER
@@ -17,6 +18,7 @@ from .spaceweather_gov_alerts import PROVIDER as SPACEWEATHER_GOV_ALERTS_PROVIDE
 
 BUILTIN_PROVIDERS = (
     ARISS_PROVIDER,
+    ATMOSPHERIC_OPTICS_PROVIDER,
     AURORA_PROVIDER,
     AURORA_GFZ_PROVIDER,
     BZ_PROVIDER,

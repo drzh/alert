@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Mapping, Sequence
+from typing import TYPE_CHECKING, Mapping, Sequence
 
 from alert.models import AlertItem, SourceConfig, StoredAlert, TargetConfig
+
+if TYPE_CHECKING:
+    from alert.infra.http import HttpClient
 
 
 class AlertProvider(ABC):
@@ -17,6 +20,14 @@ class AlertProvider(ABC):
     @abstractmethod
     def parse_items(self, target: TargetConfig, content: str) -> list[AlertItem]:
         """Parse source content into alert items."""
+
+    def fetch_content(self, target: TargetConfig, http_client: HttpClient) -> str:
+        """Fetch provider content for one target."""
+
+        return http_client.fetch_text(
+            target.url,
+            timeout_seconds=target.timeout_seconds,
+        )
 
     def should_alert(
         self,

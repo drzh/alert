@@ -3,8 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import alert.app as app_module
 from alert.app import AlertRunner
-from alert.models import Attachment, SourceConfig, TargetConfig
+from alert.models import AlertItem, Attachment, SourceConfig, TargetConfig
 from alert.infra.http import HttpClient
 
 
@@ -98,3 +99,51 @@ def test_runner_passes_attachments_from_alert_items(tmp_path: Path) -> None:
     assert summary.alerts_triggered == 1
     assert len(notifier.messages) == 1
     assert notifier.messages[0][2][0].path == str(attachment)
+
+
+def test_runner_uses_provider_custom_fetch_content(tmp_path: Path, monkeypatch) -> None:
+    @dataclass
+    class CustomProvider:
+        name: str = "custom"
+        default_email_title: str = "Custom"
+
+        def fetch_content(self, target: TargetConfig, http_client: HttpClient) -> str:
+            return "custom-payload"
+
+        def parse_items(self, target: TargetConfig, content: str) -> list[AlertItem]:
+            assert content == "custom-payload"
+            return [AlertItem(item_id="custom-item", message="Custom alert")]
+
+        def should_alert(self, history: list[object], item: AlertItem, target: TargetConfig) -> bool:
+            return True
+
+        def build_subject(self, source: SourceConfig, alerts_by_target: dict[str, list[AlertItem]]) -> str:
+            return "Custom Subject"
+
+        def after_target(
+            self,
+            target: TargetConfig,
+            items: list[AlertItem],
+            pending: list[AlertItem],
+            content: str,
+            *,
+            persist: bool,
+            notification_sent: bool,
+        ) -> None:
+            return None
+
+    source = SourceConfig(
+        name="custom",
+        provider="custom",
+        db_file=str(tmp_path / "custom.db"),
+        targets=(TargetConfig(url="custom://target"),),
+    )
+    notifier = RecordingNotifier()
+    runner = AlertRunner(http_client=FakeHttpClient(), notifier=notifier)
+
+    monkeypatch.setattr(app_module, "get_provider", lambda name: CustomProvider())
+
+    summary = runner.run_source(source, persist=False)
+
+    assert summary.alerts_triggered == 1
+    assert notifier.messages[0][0] == "Custom Subject"

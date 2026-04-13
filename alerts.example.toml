@@ -155,3 +155,18 @@ time_threshold_minutes = 10
 remove_threshold_minutes = 60
 distance_threshold = 50
 area_threshold = 1000
+
+[[sources]]
+name = "atmospheric_optics"
+provider = "atmospheric_optics"
+db_file = "state/atmospheric_optics.db"
+
+[[sources.targets]]
+name = "Home"
+url = "atmospheric-optics://home"
+threshold = 0.8
+lat = 32.82
+lon = -96.82
+mode = "observed"
+project_dir = "../atmospheric_optics"
+phenomena = ["halo", "parhelia", "cza", "rainbow"]

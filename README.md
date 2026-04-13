@@ -35,6 +35,7 @@ alert/
     repository.py
   providers/
     ariss.py
+    atmospheric_optics.py
     aurora.py
     aurora_gfz.py
     bz.py
@@ -107,6 +108,8 @@ Relative `db_file`, `*_file`, `*_path`, and `*_dir` values are resolved relative
   Supports `state_file` for the old `solarspot.val` workflow.
 - `solar_prominence`
   Supports a local file target plus `state_file`, `attachment_path`, `time_threshold_minutes`, `remove_threshold_minutes`, `distance_threshold`, and `area_threshold`.
+- `atmospheric_optics`
+  Runs the sibling `/home/celaeno/script/atmospheric_optics` predictor with target options such as `lat`, `lon`, `mode`, `project_dir`, `download_dir`, `keep_downloaded_files`, and `phenomena`.
 - `keep_records`
   Can be raised per source if you want legacy retention like `1000000`.
 
@@ -128,6 +131,7 @@ These active cron-backed jobs are now covered by built-in providers:
 - `report_ha_comet.pl` -> `ha_comet`
 - `report_rocketlaunch.py` -> `rocketlaunch`
 - `report_solar_prominence.py` -> `solar_prominence`
+- `python3 -m alert.cli run --source atmospheric_optics` -> `atmospheric_optics`
 
 Typical migrated commands now look like:
 
@@ -144,6 +148,7 @@ python3 -m alert.cli run --config alerts.toml --source solar_prominence
 - multi-target web sources like `sd`, `cl`, and `ha_comet`
 - state-file jobs like `aurora` and `solarspot`
 - a local-file-and-attachment job for `solar_prominence`
+- a local atmospheric-optics predictor job for `atmospheric_optics`
 
 ## Dry Run Behavior
 
@@ -169,6 +174,7 @@ pytest -q /home/celaeno/script/alert/tests
 ## Current Built-In Providers
 
 - `ariss`
+- `atmospheric_optics`
 - `aurora`
 - `aurora_gfz`
 - `bz`

@@ -118,23 +118,27 @@ def test_rocketlaunch_provider_parses_launch_listing() -> None:
 
 def test_aurora_provider_uses_state_file_and_writes_table(tmp_path: Path) -> None:
     state_file = tmp_path / "aurora.val"
-    state_file.write_text("threehr_max\t7\nday1_max\t0\nday2_max\t0\nday3_max\t0\n", encoding="utf-8")
+    state_file.write_text("threehr_max\t4\nday1_max\t0\nday2_max\t0\nday3_max\t0\n", encoding="utf-8")
     table_file = tmp_path / "aurora.3day.txt"
     content = """
-Forecast Table
-00-03UT   5   1   2
-03-06UT   8   3   4
-06-09UT   4   2   3
-09-12UT   6   7   3
-12-15UT   2   5   4
-15-18UT   1   4   2
-18-21UT   3   6   1
-21-00UT   2   8   5
-The greatest expected 3 hr Kp for Apr 8-9 is 8
+The greatest expected 3 hr Kp for Apr 10-Apr 12 2026 is 4.67 (NOAA Scale
+G1).
+
+NOAA Kp index breakdown Apr 10-Apr 12 2026
+
+             Apr 10       Apr 11       Apr 12
+00-03UT       4.00         3.67         3.67
+03-06UT       2.67         4.67 (G1)    3.67
+06-09UT       2.67         4.00         3.67
+09-12UT       2.00         3.67         2.67
+12-15UT       3.67         2.67         2.67
+15-18UT       2.67         2.67         1.67
+18-21UT       4.00         4.00         2.67
+21-00UT       4.67 (G1)    4.67 (G1)    3.00
 """
     target = TargetConfig(
         url="https://services.swpc.noaa.gov/text/3-day-forecast.txt",
-        threshold=7,
+        threshold=4.5,
         options={"state_file": str(state_file), "table_output_file": str(table_file)},
     )
 
@@ -149,9 +153,12 @@ The greatest expected 3 hr Kp for Apr 8-9 is 8
         notification_sent=True,
     )
 
-    assert any(item.metadata.get("stable_id") == "threehr_max" and item.value == "8" for item in pending)
-    assert "threehr_max\t8" in state_file.read_text(encoding="utf-8")
+    assert any(item.metadata.get("stable_id") == "threehr_max" and item.value == "4.67" for item in pending)
+    assert any(item.metadata.get("stable_id") == "day1_max" and item.value == "4.67" for item in pending)
+    assert any(item.metadata.get("stable_id") == "day2_max" and item.value == "4.67" for item in pending)
+    assert "threehr_max\t4.67" in state_file.read_text(encoding="utf-8")
     assert "00-03UT" in table_file.read_text(encoding="utf-8")
+    assert "03-06UT       2.67         4.67 (G1)    3.67" in table_file.read_text(encoding="utf-8")
 
 
 def test_solarspot_provider_updates_state_on_alert(tmp_path: Path) -> None:
