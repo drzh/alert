@@ -11,13 +11,6 @@ from alert.models import AlertItem, SourceConfig, TargetConfig
 from alert.providers._helpers import option_str
 from alert.providers.base import AlertProvider
 
-SUPPORTED_PHENOMENA = ("halo", "parhelia", "cza", "rainbow")
-PHENOMENON_LABELS = {
-    "halo": "Halo",
-    "parhelia": "Parhelia",
-    "cza": "Circumzenithal Arc",
-    "rainbow": "Rainbow",
-}
 WEATHER_MODES = {"forecast", "observed"}
 DEFAULT_PROJECT_DIR = Path(__file__).resolve().parents[3] / "atmospheric_optics"
 
@@ -39,6 +32,12 @@ class AtmosphericOpticsProvider(AlertProvider):
 
         python_path = option_str(target, "python_path") or sys.executable
         download_dir = option_str(target, "download_dir")
+        at_time = option_str(target, "at_time")
+        time_window_hours = _option_csv(target, "time_window_hours")
+        phenomena = _option_csv(target, "phenomena")
+        spatial_resolution_km = option_str(target, "spatial_resolution_km")
+        lightweight = _option_bool(target, "lightweight", default=False)
+        debug = _option_bool(target, "debug", default=False)
         keep_downloaded_files = _option_bool(
             target,
             "keep_downloaded_files",
@@ -54,6 +53,18 @@ class AtmosphericOpticsProvider(AlertProvider):
             "--mode",
             mode,
         ]
+        if at_time:
+            command.extend(["--at-time", at_time])
+        if time_window_hours:
+            command.extend(["--time-window-hours", time_window_hours])
+        if phenomena:
+            command.extend(["--phenomena", phenomena])
+        if spatial_resolution_km:
+            command.extend(["--spatial-resolution-km", spatial_resolution_km])
+        if lightweight:
+            command.append("--lightweight")
+        if debug:
+            command.append("--debug")
         if keep_downloaded_files:
             command.append("--keep-downloaded-files")
         if download_dir:
@@ -75,46 +86,84 @@ class AtmosphericOpticsProvider(AlertProvider):
     def parse_items(self, target: TargetConfig, content: str) -> list[AlertItem]:
         payload = _parse_payload(content)
         threshold = target.threshold if target.threshold is not None else 0.8
-        mode = _resolve_mode(target)
-        lat = _require_float_option(target, "lat")
-        lon = _require_float_option(target, "lon")
+        request = _request_payload(payload)
+        mode = str(request.get("mode", _resolve_mode(target))).strip().lower() or _resolve_mode(target)
+        prediction_time = str(request.get("prediction_time", "")).strip()
+        location = _request_location(request)
+        lat = location.get("lat", _require_float_option(target, "lat"))
+        lon = location.get("lon", _require_float_option(target, "lon"))
         sources = _normalize_sources(payload.get("sources"))
         source_signature = _source_signature(sources)
         source_summary = _source_summary(sources)
+        phenomenon_items = _phenomena_by_id(payload.get("phenomena"))
+        selected_phenomena = _selected_phenomena(target, tuple(phenomenon_items))
 
         items: list[AlertItem] = []
-        for phenomenon in _selected_phenomena(target):
-            probability = _to_float(payload.get(phenomenon))
-            if probability is None or probability < threshold:
+        for phenomenon in selected_phenomena:
+            entry = phenomenon_items.get(phenomenon)
+            if entry is None:
                 continue
 
-            label = PHENOMENON_LABELS[phenomenon]
+            label = _entry_label(phenomenon, entry)
+            current = entry.get("current") if isinstance(entry.get("current"), dict) else {}
+            peak = entry.get("peak") if isinstance(entry.get("peak"), dict) else {}
+            current_probability = _to_float(current.get("probability"))
+            peak_probability = _to_peak_probability(entry)
+            if peak_probability is None or peak_probability < threshold:
+                continue
+
+            confidence = _to_float(current.get("confidence"))
+            reason = _to_string(current.get("reason"))
+            peak_time = _to_string(peak.get("time"))
+            timeline = _to_timeline(entry.get("timeline"))
+            spatial_context = _to_spatial_context(current.get("spatial_context"))
             item_id = _build_item_id(
                 phenomenon=phenomenon,
                 mode=mode,
                 source_signature=source_signature,
-                probability=probability,
+                peak_time=peak_time,
+                probability=peak_probability,
             )
             message_parts = [
-                f"{label}: probability {probability:.3f}",
+                f"{label}: peak probability {peak_probability:.3f}",
                 f"Threshold: {threshold:.3f}",
                 f"Mode: {mode}",
                 f"Location: {lat:.4f}, {lon:.4f}",
             ]
+            if current_probability is not None:
+                message_parts.append(f"Current probability: {current_probability:.3f}")
+            if peak_time:
+                message_parts.append(f"Peak time: {peak_time}")
+            if confidence is not None:
+                message_parts.append(f"Confidence: {confidence:.3f}")
+            if reason:
+                message_parts.append(f"Reason: {reason}")
+            if prediction_time:
+                message_parts.append(f"Prediction time: {prediction_time}")
             if source_summary:
                 message_parts.append(f"Sources: {source_summary}")
             items.append(
                 AlertItem(
                     item_id=item_id,
                     message="<br/>".join(message_parts),
-                    value=f"{probability:.3f}",
-                    occurred_at=sources[0]["timestamp"] if sources else None,
+                    value=f"{peak_probability:.3f}",
+                    occurred_at=peak_time or (sources[0]["timestamp"] if sources else None),
                     metadata={
                         "phenomenon": phenomenon,
+                        "label": label,
+                        "category": _to_string(entry.get("category")),
                         "mode": mode,
                         "lat": lat,
                         "lon": lon,
-                        "probability": round(probability, 3),
+                        "probability": round(peak_probability, 3),
+                        "current_probability": round(current_probability, 3) if current_probability is not None else None,
+                        "peak_probability": round(peak_probability, 3),
+                        "peak_time": peak_time,
+                        "timeline": timeline,
+                        "spatial_context": spatial_context,
+                        "confidence": round(confidence, 3) if confidence is not None else None,
+                        "reason": reason,
+                        "prediction_time": prediction_time,
                         "sources": [dict(source) for source in sources],
                         "source_signature": source_signature,
                     },
@@ -130,8 +179,7 @@ class AtmosphericOpticsProvider(AlertProvider):
         labels: list[str] = []
         for alerts in alerts_by_target.values():
             for alert in alerts:
-                phenomenon = str(alert.metadata.get("phenomenon", "")).strip().lower()
-                label = PHENOMENON_LABELS.get(phenomenon)
+                label = _to_string(alert.metadata.get("label"))
                 if label and label not in labels:
                     labels.append(label)
 
@@ -151,6 +199,26 @@ def _parse_payload(content: str) -> dict[str, object]:
     return payload
 
 
+def _request_payload(payload: dict[str, object]) -> dict[str, object]:
+    request = payload.get("request")
+    if isinstance(request, dict):
+        return request
+    return {}
+
+
+def _request_location(request: dict[str, object]) -> dict[str, float]:
+    location = request.get("location")
+    if not isinstance(location, dict):
+        return {}
+    normalized: dict[str, float] = {}
+    for key in ("lat", "lon"):
+        try:
+            normalized[key] = float(location[key])
+        except (KeyError, TypeError, ValueError):
+            continue
+    return normalized
+
+
 def _resolve_project_dir(target: TargetConfig) -> Path:
     project_dir = Path(option_str(target, "project_dir") or DEFAULT_PROJECT_DIR).expanduser()
     if not project_dir.is_dir():
@@ -166,10 +234,10 @@ def _resolve_mode(target: TargetConfig) -> str:
     return mode
 
 
-def _selected_phenomena(target: TargetConfig) -> tuple[str, ...]:
+def _selected_phenomena(target: TargetConfig, available: tuple[str, ...]) -> tuple[str, ...]:
     configured = target.options.get("phenomena")
     if configured is None:
-        return SUPPORTED_PHENOMENA
+        return available
     if not isinstance(configured, (list, tuple)):
         raise ValueError("atmospheric_optics phenomena must be a list of names.")
 
@@ -179,7 +247,7 @@ def _selected_phenomena(target: TargetConfig) -> tuple[str, ...]:
         name = str(value).strip().lower()
         if not name:
             continue
-        if name not in SUPPORTED_PHENOMENA:
+        if name not in available:
             invalid.append(name)
             continue
         if name not in selected:
@@ -217,6 +285,17 @@ def _option_bool(target: TargetConfig, key: str, default: bool) -> bool:
     raise ValueError(f"atmospheric_optics target option '{key}' must be boolean.")
 
 
+def _option_csv(target: TargetConfig, key: str) -> str:
+    value = target.options.get(key)
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, (list, tuple)):
+        return ",".join(str(item).strip() for item in value if str(item).strip())
+    return str(value).strip()
+
+
 def _normalize_sources(raw_sources: object) -> tuple[dict[str, str], ...]:
     if not isinstance(raw_sources, list):
         return ()
@@ -225,11 +304,20 @@ def _normalize_sources(raw_sources: object) -> tuple[dict[str, str], ...]:
     for entry in raw_sources:
         if not isinstance(entry, dict):
             continue
-        name = str(entry.get("name", "")).strip()
-        timestamp = str(entry.get("timestamp", "")).strip()
-        if not name and not timestamp:
+        source_id = _to_string(entry.get("id") or entry.get("name"))
+        label = _to_string(entry.get("label")) or _humanize_identifier(source_id)
+        kind = _to_string(entry.get("kind"))
+        timestamp = _to_string(entry.get("timestamp"))
+        if not source_id and not timestamp:
             continue
-        normalized.append({"name": name, "timestamp": timestamp})
+        normalized.append(
+            {
+                "id": source_id,
+                "label": label,
+                "kind": kind,
+                "timestamp": timestamp,
+            }
+        )
     return tuple(normalized)
 
 
@@ -237,14 +325,14 @@ def _source_signature(sources: tuple[dict[str, str], ...]) -> str:
     if not sources:
         return ""
     return "|".join(
-        f"{source['name']}@{source['timestamp']}".strip("@")
+        f"{source['id']}@{source['timestamp']}".strip("@")
         for source in sources
     )
 
 
 def _source_summary(sources: tuple[dict[str, str], ...]) -> str:
     return ", ".join(
-        " ".join(part for part in (source["name"], source["timestamp"]) if part)
+        " ".join(part for part in (source["label"], source["timestamp"]) if part)
         for source in sources
     )
 
@@ -253,10 +341,82 @@ def _build_item_id(
     phenomenon: str,
     mode: str,
     source_signature: str,
+    peak_time: str,
     probability: float,
 ) -> str:
-    suffix = source_signature or f"probability@{probability:.3f}"
+    suffix = source_signature or peak_time or f"probability@{probability:.3f}"
     return f"{phenomenon}:{mode}:{suffix}"
+
+
+def _phenomena_by_id(raw_phenomena: object) -> dict[str, dict[str, object]]:
+    if not isinstance(raw_phenomena, list):
+        return {}
+
+    phenomena: dict[str, dict[str, object]] = {}
+    for entry in raw_phenomena:
+        if not isinstance(entry, dict):
+            continue
+        phenomenon_id = _to_string(entry.get("id")).lower()
+        if not phenomenon_id:
+            continue
+        phenomena[phenomenon_id] = entry
+    return phenomena
+
+
+def _entry_label(phenomenon: str, entry: dict[str, object]) -> str:
+    label = _to_string(entry.get("label"))
+    if label:
+        return label
+    return _humanize_identifier(phenomenon)
+
+
+def _to_peak_probability(entry: dict[str, object]) -> float | None:
+    peak = entry.get("peak")
+    if isinstance(peak, dict):
+        value = _to_float(peak.get("probability"))
+        if value is not None:
+            return value
+
+    timeline = _to_timeline(entry.get("timeline"))
+    if timeline:
+        return max(timeline.values())
+
+    current = entry.get("current")
+    if isinstance(current, dict):
+        return _to_float(current.get("probability"))
+    return None
+
+
+def _to_timeline(value: object) -> dict[str, float]:
+    if not isinstance(value, list):
+        return {}
+
+    timeline: dict[str, float] = {}
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        label = _to_string(item.get("label"))
+        probability = _to_float(item.get("probability"))
+        if not label or probability is None:
+            continue
+        timeline[label] = probability
+    return timeline
+
+
+def _to_spatial_context(value: object) -> dict[str, object]:
+    if not isinstance(value, dict):
+        return {}
+
+    spatial_context: dict[str, object] = {}
+    for key, item in value.items():
+        if isinstance(item, str):
+            spatial_context[str(key)] = item
+            continue
+        try:
+            spatial_context[str(key)] = float(item)
+        except (TypeError, ValueError):
+            continue
+    return spatial_context
 
 
 def _to_float(value: object) -> float | None:
@@ -264,6 +424,18 @@ def _to_float(value: object) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _to_string(value: object) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def _humanize_identifier(value: str) -> str:
+    if not value:
+        return ""
+    return value.replace("_", " ").replace("-", " ").title()
 
 
 PROVIDER = AtmosphericOpticsProvider()

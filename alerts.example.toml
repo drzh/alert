@@ -165,8 +165,19 @@ db_file = "state/atmospheric_optics.db"
 name = "Home"
 url = "atmospheric-optics://home"
 threshold = 0.8
+timeout_seconds = 180
 lat = 32.82
 lon = -96.82
 mode = "observed"
 project_dir = "../atmospheric_optics"
-phenomena = ["halo", "parhelia", "cza", "rainbow"]
+phenomena = [
+  "halo",
+  "parhelia",
+  "cza",
+  "circumhorizontal_arc",
+  "upper_tangent_arc",
+  "sun_pillar",
+  "crepuscular_rays",
+  "rainbow",
+  "fogbow",
+]

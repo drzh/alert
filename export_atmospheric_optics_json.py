@@ -17,6 +17,8 @@ if str(PROJECT_ROOT) not in sys.path:
 from alert.config import load_config
 from alert.providers.atmospheric_optics import PROVIDER
 
+ROUND_DECIMALS = 3
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -60,28 +62,49 @@ def _select_target(source, target_name: str):
     return source.targets[0]
 
 
-def _normalize_probability(value: object) -> float:
-    try:
-        return round(float(value), 3)
-    except (TypeError, ValueError):
-        return 0.0
+def _normalize_target(target) -> dict[str, object]:
+    options = target.options
+    normalized = {
+        "name": target.name or "",
+        "threshold": float(target.threshold) if target.threshold is not None else None,
+        "location": {
+            "lat": float(options.get("lat", 0.0)),
+            "lon": float(options.get("lon", 0.0)),
+        },
+        "mode": str(options.get("mode", "observed")),
+    }
+    configured_phenomena = options.get("phenomena")
+    if isinstance(configured_phenomena, (list, tuple)):
+        normalized["phenomena"] = [
+            str(value).strip()
+            for value in configured_phenomena
+            if str(value).strip()
+        ]
+    return normalized
+
+
+def _round_numbers(value: object) -> object:
+    if isinstance(value, dict):
+        return {str(key): _round_numbers(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_round_numbers(item) for item in value]
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return round(value, ROUND_DECIMALS)
+    return value
 
 
 def _build_export_payload(source, target, payload: dict[str, object]) -> dict[str, object]:
-    options = target.options
     return {
-        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "source_name": source.name,
-        "target_name": target.name or "",
-        "mode": str(options.get("mode", "observed")),
-        "threshold": float(target.threshold) if target.threshold is not None else None,
-        "lat": float(options.get("lat", 0.0)),
-        "lon": float(options.get("lon", 0.0)),
-        "halo": _normalize_probability(payload.get("halo")),
-        "parhelia": _normalize_probability(payload.get("parhelia")),
-        "cza": _normalize_probability(payload.get("cza")),
-        "rainbow": _normalize_probability(payload.get("rainbow")),
-        "sources": payload.get("sources", []),
+        "exported_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "source": {
+            "name": source.name,
+        },
+        "target": _normalize_target(target),
+        "prediction": _round_numbers(payload),
     }
 
 
