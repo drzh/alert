@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from export_atmospheric_optics_json import _build_export_payload
+from alert.models import TargetConfig
+from export_atmospheric_optics_json import _build_export_payload, _target_with_illumination_override
 
 
 def test_build_export_payload_wraps_prediction_and_preserves_flexible_structure() -> None:
@@ -120,3 +121,23 @@ def test_build_export_payload_preserves_target_illumination_when_present() -> No
 
     assert result["target"]["mode"] == "observed"
     assert result["target"]["location"] == {"lat": 32.847, "lon": -96.806}
+    assert result["target"]["illumination"] == "lunar"
+
+
+def test_target_with_illumination_override_updates_target_options() -> None:
+    target = TargetConfig(
+        url="atmospheric-optics://home",
+        name="Home",
+        threshold=0.8,
+        options={
+            "mode": "observed",
+            "illumination": "solar",
+            "lat": 32.847,
+            "lon": -96.806,
+        },
+    )
+
+    overridden = _target_with_illumination_override(target, "lunar")
+
+    assert overridden is not target
+    assert overridden.options["illumination"] == "lunar"

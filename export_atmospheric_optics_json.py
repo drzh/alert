@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import json
 import sys
 from datetime import datetime, timezone
@@ -15,6 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from alert.config import load_config
+from alert.models import TargetConfig
 from alert.providers.atmospheric_optics import PROVIDER
 
 ROUND_DECIMALS = 3
@@ -46,6 +48,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--prediction-only",
         action="store_true",
         help="Write the raw predictor payload instead of the wrapped export envelope.",
+    )
+    parser.add_argument(
+        "--illumination",
+        choices=("solar", "lunar"),
+        help="Optional illumination override for the exported predictor run.",
     )
     return parser
 
@@ -115,6 +122,14 @@ def _build_export_payload(source, target, payload: dict[str, object]) -> dict[st
     }
 
 
+def _target_with_illumination_override(target: TargetConfig, illumination: str | None) -> TargetConfig:
+    if not illumination:
+        return target
+    updated_options = dict(target.options)
+    updated_options["illumination"] = illumination
+    return replace(target, options=updated_options)
+
+
 def write_json(output_path: Path, payload: dict[str, object]) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = output_path.with_name(output_path.name + ".tmp")
@@ -128,7 +143,10 @@ def main(argv: list[str] | None = None) -> int:
     output_path = Path(args.output).expanduser().resolve()
 
     source = _select_source(config_path, args.source)
-    target = _select_target(source, args.target_name.strip())
+    target = _target_with_illumination_override(
+        _select_target(source, args.target_name.strip()),
+        args.illumination,
+    )
     content = PROVIDER.fetch_content(target, http_client=object())
     payload = json.loads(content)
     if not isinstance(payload, dict):
