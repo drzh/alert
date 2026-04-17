@@ -126,7 +126,10 @@ def _target_with_illumination_override(target: TargetConfig, illumination: str |
     if not illumination:
         return target
     updated_options = dict(target.options)
+    previous_illumination = str(updated_options.get("illumination", "solar")).strip().lower()
     updated_options["illumination"] = illumination
+    if previous_illumination != illumination and "phenomena" in updated_options:
+        updated_options.pop("phenomena", None)
     return replace(target, options=updated_options)
 
 

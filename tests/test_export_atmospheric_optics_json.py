@@ -134,6 +134,7 @@ def test_target_with_illumination_override_updates_target_options() -> None:
             "illumination": "solar",
             "lat": 32.847,
             "lon": -96.806,
+            "phenomena": ["halo", "fogbow"],
         },
     )
 
@@ -141,3 +142,4 @@ def test_target_with_illumination_override_updates_target_options() -> None:
 
     assert overridden is not target
     assert overridden.options["illumination"] == "lunar"
+    assert "phenomena" not in overridden.options
