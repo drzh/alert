@@ -101,3 +101,22 @@ def test_build_export_payload_wraps_prediction_and_preserves_flexible_structure(
     assert result["prediction"]["sources"] == [
         {"id": "goes-east", "label": "GOES East", "kind": "satellite", "timestamp": "20260413 155618z"}
     ]
+
+
+def test_build_export_payload_preserves_target_illumination_when_present() -> None:
+    source = SimpleNamespace(name="atmospheric_optics")
+    target = SimpleNamespace(
+        name="Moon",
+        threshold=0.6,
+        options={
+            "mode": "observed",
+            "illumination": "lunar",
+            "lat": 32.847,
+            "lon": -96.806,
+        },
+    )
+
+    result = _build_export_payload(source, target, {"request": {}, "phenomena": [], "sources": []})
+
+    assert result["target"]["mode"] == "observed"
+    assert result["target"]["location"] == {"lat": 32.847, "lon": -96.806}

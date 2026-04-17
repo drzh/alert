@@ -32,6 +32,7 @@ def test_atmospheric_optics_provider_runs_local_predictor(monkeypatch, tmp_path)
                 "lat": 32.82,
                 "lon": -96.82,
                 "mode": "observed",
+                "illumination": "lunar",
                 "project_dir": str(project_dir),
                 "python_path": "/usr/bin/python3",
                 "download_dir": str(tmp_path / "cache"),
@@ -53,6 +54,8 @@ def test_atmospheric_optics_provider_runs_local_predictor(monkeypatch, tmp_path)
         "-96.82",
         "--mode",
         "observed",
+        "--illumination",
+        "lunar",
         "--at-time",
         "2026-04-13T18:00:00Z",
         "--time-window-hours",
@@ -65,6 +68,22 @@ def test_atmospheric_optics_provider_runs_local_predictor(monkeypatch, tmp_path)
     ]
     assert captured["cwd"] == project_dir
     assert captured["timeout"] == 45.0
+
+
+def test_atmospheric_optics_provider_rejects_unknown_illumination() -> None:
+    with pytest.raises(ValueError):
+        atmospheric_optics_provider.fetch_content(
+            TargetConfig(
+                url="atmospheric-optics://home",
+                threshold=0.8,
+                options={
+                    "lat": 32.82,
+                    "lon": -96.82,
+                    "illumination": "twilight",
+                },
+            ),
+            http_client=object(),
+        )
 
 
 def test_atmospheric_optics_provider_filters_by_peak_threshold_and_selected_phenomena() -> None:

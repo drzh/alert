@@ -169,6 +169,7 @@ timeout_seconds = 180
 lat = 32.82
 lon = -96.82
 mode = "observed"
+illumination = "solar"
 project_dir = "../atmospheric_optics"
 phenomena = [
   "halo",

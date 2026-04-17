@@ -12,6 +12,7 @@ from alert.providers._helpers import option_str
 from alert.providers.base import AlertProvider
 
 WEATHER_MODES = {"forecast", "observed"}
+ILLUMINATION_MODES = {"solar", "lunar"}
 DEFAULT_PROJECT_DIR = Path(__file__).resolve().parents[3] / "atmospheric_optics"
 
 
@@ -25,6 +26,7 @@ class AtmosphericOpticsProvider(AlertProvider):
         lat = _require_float_option(target, "lat")
         lon = _require_float_option(target, "lon")
         mode = _resolve_mode(target)
+        illumination = _resolve_illumination(target)
         project_dir = _resolve_project_dir(target)
         cli_path = project_dir / "cli" / "main.py"
         if not cli_path.is_file():
@@ -53,6 +55,7 @@ class AtmosphericOpticsProvider(AlertProvider):
             "--mode",
             mode,
         ]
+        command.extend(["--illumination", illumination])
         if at_time:
             command.extend(["--at-time", at_time])
         if time_window_hours:
@@ -232,6 +235,16 @@ def _resolve_mode(target: TargetConfig) -> str:
         expected = ", ".join(sorted(WEATHER_MODES))
         raise ValueError(f"Unsupported atmospheric_optics mode '{mode}'. Expected one of: {expected}")
     return mode
+
+
+def _resolve_illumination(target: TargetConfig) -> str:
+    illumination = (option_str(target, "illumination") or "solar").lower()
+    if illumination not in ILLUMINATION_MODES:
+        expected = ", ".join(sorted(ILLUMINATION_MODES))
+        raise ValueError(
+            f"Unsupported atmospheric_optics illumination '{illumination}'. Expected one of: {expected}"
+        )
+    return illumination
 
 
 def _selected_phenomena(target: TargetConfig, available: tuple[str, ...]) -> tuple[str, ...]:

@@ -42,6 +42,11 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="Output JSON file path.",
     )
+    parser.add_argument(
+        "--prediction-only",
+        action="store_true",
+        help="Write the raw predictor payload instead of the wrapped export envelope.",
+    )
     return parser
 
 
@@ -73,6 +78,8 @@ def _normalize_target(target) -> dict[str, object]:
         },
         "mode": str(options.get("mode", "observed")),
     }
+    if "illumination" in options:
+        normalized["illumination"] = str(options.get("illumination", "solar"))
     configured_phenomena = options.get("phenomena")
     if isinstance(configured_phenomena, (list, tuple)):
         normalized["phenomena"] = [
@@ -127,7 +134,8 @@ def main(argv: list[str] | None = None) -> int:
     if not isinstance(payload, dict):
         raise ValueError("Atmospheric optics payload must be a JSON object.")
 
-    write_json(output_path, _build_export_payload(source, target, payload))
+    export_payload = payload if args.prediction_only else _build_export_payload(source, target, payload)
+    write_json(output_path, export_payload)
     return 0
 
 
