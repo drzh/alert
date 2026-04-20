@@ -98,6 +98,10 @@ class AtmosphericOpticsProvider(AlertProvider):
         sources = _normalize_sources(payload.get("sources"))
         source_signature = _source_signature(sources)
         source_summary = _source_summary(sources)
+        celestial = _normalize_celestial(payload.get("celestial"))
+        illumination = _resolve_illumination(target)
+        primary_body = "moon" if illumination == "lunar" else "sun"
+        primary_altitude = _to_float(celestial.get(primary_body, {}).get("altitude"))
         phenomenon_items = _phenomena_by_id(payload.get("phenomena"))
         selected_phenomena = _selected_phenomena(target, tuple(phenomenon_items))
 
@@ -139,6 +143,8 @@ class AtmosphericOpticsProvider(AlertProvider):
                 message_parts.append(f"Peak time: {peak_time}")
             if confidence is not None:
                 message_parts.append(f"Confidence: {confidence:.3f}")
+            if primary_altitude is not None:
+                message_parts.append(f"{primary_body.title()} altitude: {primary_altitude:.1f} deg")
             if reason:
                 message_parts.append(f"Reason: {reason}")
             if prediction_time:
@@ -165,6 +171,8 @@ class AtmosphericOpticsProvider(AlertProvider):
                         "timeline": timeline,
                         "spatial_context": spatial_context,
                         "confidence": round(confidence, 3) if confidence is not None else None,
+                        "celestial": celestial,
+                        "primary_altitude": round(primary_altitude, 3) if primary_altitude is not None else None,
                         "reason": reason,
                         "prediction_time": prediction_time,
                         "sources": [dict(source) for source in sources],
@@ -332,6 +340,22 @@ def _normalize_sources(raw_sources: object) -> tuple[dict[str, str], ...]:
             }
         )
     return tuple(normalized)
+
+
+def _normalize_celestial(raw_celestial: object) -> dict[str, dict[str, float]]:
+    if not isinstance(raw_celestial, dict):
+        return {}
+
+    celestial: dict[str, dict[str, float]] = {}
+    for body in ("sun", "moon"):
+        entry = raw_celestial.get(body)
+        if not isinstance(entry, dict):
+            continue
+        altitude = _to_float(entry.get("altitude"))
+        if altitude is None:
+            continue
+        celestial[body] = {"altitude": altitude}
+    return celestial
 
 
 def _source_signature(sources: tuple[dict[str, str], ...]) -> str:

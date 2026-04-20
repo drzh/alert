@@ -78,6 +78,7 @@ def test_build_export_payload_wraps_prediction_and_preserves_flexible_structure(
             },
         ],
         "sources": [{"id": "goes-east", "label": "GOES East", "kind": "satellite", "timestamp": "20260413 155618z"}],
+        "celestial": {"sun": {"altitude": 18.4321}},
     }
 
     result = _build_export_payload(source, target, raw_payload)
@@ -94,6 +95,7 @@ def test_build_export_payload_wraps_prediction_and_preserves_flexible_structure(
     assert result["prediction"]["request"]["mode"] == "forecast"
     assert result["prediction"]["request"]["prediction_time"] == "2026-04-13T18:00:00Z"
     assert result["prediction"]["request"]["time_window_hours"] == [0, 1, 3]
+    assert result["prediction"]["celestial"]["sun"]["altitude"] == 18.432
     assert result["prediction"]["phenomena"][0]["current"]["probability"] == 0.123
     assert result["prediction"]["phenomena"][0]["current"]["confidence"] == 0.912
     assert result["prediction"]["phenomena"][0]["current"]["spatial_context"]["mean_probability"] == 0.154

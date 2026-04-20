@@ -105,6 +105,9 @@ def test_atmospheric_optics_provider_filters_by_peak_threshold_and_selected_phen
             "prediction_time": "2026-04-13T18:00:00Z",
             "location": {"lat": 32.82, "lon": -96.82}
           },
+          "celestial": {
+            "sun": {"altitude": 21.4}
+          },
           "phenomena": [
             {
               "id": "halo",
@@ -169,9 +172,12 @@ def test_atmospheric_optics_provider_filters_by_peak_threshold_and_selected_phen
     assert items[0].metadata["current_probability"] == pytest.approx(0.442)
     assert items[0].metadata["peak_time"] == "2026-04-13T19:00:00Z"
     assert items[0].metadata["confidence"] == pytest.approx(0.913)
+    assert items[0].metadata["celestial"] == {"sun": {"altitude": 21.4}}
+    assert items[0].metadata["primary_altitude"] == pytest.approx(21.4)
     assert items[0].metadata["reason"] == "Thin cirrus with favorable solar elevation"
     assert items[0].metadata["spatial_context"]["aggregation"] == "weighted_blend"
     assert "Current probability: 0.442" in items[0].message
+    assert "Sun altitude: 21.4 deg" in items[0].message
     assert "Peak probability 0.842" not in items[0].message
     assert "peak probability 0.842" in items[0].message
     assert "Peak time: 2026-04-13T19:00:00Z" in items[0].message
@@ -211,6 +217,9 @@ def test_atmospheric_optics_provider_accepts_payload_defined_future_phenomena() 
             "mode": "observed",
             "prediction_time": "2026-04-13T18:00:00Z",
             "location": {"lat": 32.82, "lon": -96.82}
+          },
+          "celestial": {
+            "sun": {"altitude": -14.2}
           },
           "phenomena": [
             {
