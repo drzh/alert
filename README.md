@@ -33,6 +33,8 @@ alert/
     http.py
     notifier.py
     repository.py
+  exporters/
+    atmospheric_optics_json.py
   providers/
     ariss.py
     atmospheric_optics.py
@@ -45,6 +47,7 @@ alert/
     rocketlaunch.py
     sd.py
     solar_prominence.py
+    solar_prominence_history.py
     solarspot.py
     spaceweather_com.py
     spaceweather_gov.py
@@ -109,7 +112,7 @@ Relative `db_file`, `*_file`, `*_path`, and `*_dir` values are resolved relative
 - `solar_prominence`
   Supports a local file target plus `state_file`, `attachment_path`, `time_threshold_minutes`, `remove_threshold_minutes`, `distance_threshold`, and `area_threshold`.
 - `atmospheric_optics`
-  Runs the sibling `/home/celaeno/script/atmospheric_optics` predictor with target options such as `lat`, `lon`, `mode`, `project_dir`, `download_dir`, `keep_downloaded_files`, and `phenomena`.
+  Runs a sibling `atmospheric_optics` predictor checkout with target options such as `lat`, `lon`, `mode`, `project_dir`, `download_dir`, `keep_downloaded_files`, and `phenomena`.
 - `keep_records`
   Can be raised per source if you want legacy retention like `1000000`.
 
@@ -168,7 +171,7 @@ python3 -m alert.cli run --config alerts.toml --source solar_prominence
 Run the full suite:
 
 ```bash
-pytest -q /home/celaeno/script/alert/tests
+pytest -q tests
 ```
 
 ## Current Built-In Providers

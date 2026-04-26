@@ -3,7 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from alert.models import TargetConfig
-from export_atmospheric_optics_json import _build_export_payload, _target_with_illumination_override
+from alert.exporters.atmospheric_optics_json import _build_export_payload, _target_with_illumination_override
 
 
 def test_build_export_payload_wraps_prediction_and_preserves_flexible_structure() -> None:
