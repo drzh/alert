@@ -16,8 +16,8 @@ from alert.providers._helpers import parse_tab_mapping
 FIELDNAMES = (
     "obs_time",
     "intensity_max",
-    "intensity_max_longitude",
     "intensity_max_latitude",
+    "intensity_max_longitude",
 )
 LEGACY_FIELDNAMES = ("obs_time", "intensity_max")
 CURRENT_REQUIRED_FIELDNAMES = (
@@ -32,8 +32,8 @@ LONGITUDE_FIELD_ALIASES = ("intensity_max_longitude", "intensity_max_longtitude"
 class HistoryRecord:
     obs_time: str
     intensity_max: str
-    intensity_max_longitude: str
     intensity_max_latitude: str
+    intensity_max_longitude: str
 
 
 def update_history(input_file: Path, history_file: Path, *, hours: float = 120) -> list[HistoryRecord]:
@@ -91,13 +91,13 @@ def _read_current_record(input_file: Path) -> HistoryRecord:
     return HistoryRecord(
         obs_time=obs_time,
         intensity_max=_round_intensity_max(values["intensity_max"]),
-        intensity_max_longitude=_round_coordinate(
-            intensity_max_longitude,
-            "intensity_max_longitude",
-        ),
         intensity_max_latitude=_round_coordinate(
             values["intensity_max_latitude"],
             "intensity_max_latitude",
+        ),
+        intensity_max_longitude=_round_coordinate(
+            intensity_max_longitude,
+            "intensity_max_longitude",
         ),
     )
 
@@ -115,28 +115,28 @@ def _read_history(history_file: Path) -> dict[str, HistoryRecord]:
         for row in reader:
             obs_time = (row.get("obs_time") or "").strip()
             intensity_max = (row.get("intensity_max") or "").strip()
-            intensity_max_longitude = _get_longitude_value(row)
             intensity_max_latitude = (row.get("intensity_max_latitude") or "").strip()
+            intensity_max_longitude = _get_longitude_value(row)
             if not obs_time or not intensity_max:
                 continue
             try:
                 _parse_obs_time(obs_time)
                 rounded_intensity_max = _round_intensity_max(intensity_max)
-                rounded_longitude = _round_optional_coordinate(
-                    intensity_max_longitude,
-                    "intensity_max_longitude",
-                )
                 rounded_latitude = _round_optional_coordinate(
                     intensity_max_latitude,
                     "intensity_max_latitude",
+                )
+                rounded_longitude = _round_optional_coordinate(
+                    intensity_max_longitude,
+                    "intensity_max_longitude",
                 )
             except ValueError:
                 continue
             records[obs_time] = HistoryRecord(
                 obs_time=obs_time,
                 intensity_max=rounded_intensity_max,
-                intensity_max_longitude=rounded_longitude,
                 intensity_max_latitude=rounded_latitude,
+                intensity_max_longitude=rounded_longitude,
             )
 
     return records
@@ -158,8 +158,8 @@ def _write_history(history_file: Path, records: Iterable[HistoryRecord]) -> None
                 {
                     "obs_time": record.obs_time,
                     "intensity_max": record.intensity_max,
-                    "intensity_max_longitude": record.intensity_max_longitude,
                     "intensity_max_latitude": record.intensity_max_latitude,
+                    "intensity_max_longitude": record.intensity_max_longitude,
                 }
             )
     tmp_file.replace(history_file)

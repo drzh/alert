@@ -16,8 +16,8 @@ def test_update_solar_prominence_history_upserts_current_record(tmp_path: Path) 
                 "current_time\t2026-04-25T07:31:08.410296+00:00",
                 "obs_time\t2026-04-25T07:24:53.136",
                 "intensity_max\t294.625",
-                "intensity_max_longitude\t-45.6",
                 "intensity_max_latitude\t20.4",
+                "intensity_max_longitude\t-45.6",
             ]
         )
         + "\n",
@@ -26,9 +26,9 @@ def test_update_solar_prominence_history_upserts_current_record(tmp_path: Path) 
     history_file.write_text(
         "\n".join(
             [
-                "obs_time\tintensity_max\tintensity_max_pixel_x\tintensity_max_pixel_y\tintensity_max_longitude\tintensity_max_latitude",
-                "2026-04-25T06:00:00.000\t100\t10\t20\t5\t-10",
-                "2026-04-25T07:24:53.136\t111\t30\t40\t11\t12",
+                "obs_time\tintensity_max\tintensity_max_longitude\tintensity_max_latitude",
+                "2026-04-25T06:00:00.000\t100\t5\t-10",
+                "2026-04-25T07:24:53.136\t111\t11\t12",
             ]
         )
         + "\n",
@@ -42,9 +42,9 @@ def test_update_solar_prominence_history_upserts_current_record(tmp_path: Path) 
         "2026-04-25T07:24:53.136",
     ]
     assert history_file.read_text(encoding="utf-8") == (
-        "obs_time\tintensity_max\tintensity_max_longitude\tintensity_max_latitude\n"
-        "2026-04-25T06:00:00.000\t100\t5\t-10\n"
-        "2026-04-25T07:24:53.136\t295\t-46\t20\n"
+        "obs_time\tintensity_max\tintensity_max_latitude\tintensity_max_longitude\n"
+        "2026-04-25T06:00:00.000\t100\t-10\t5\n"
+        "2026-04-25T07:24:53.136\t295\t20\t-46\n"
     )
 
 
@@ -56,8 +56,8 @@ def test_update_solar_prominence_history_prunes_from_latest_obs_time(tmp_path: P
             [
                 "obs_time\t2026-04-25T12:00:00",
                 "intensity_max\t450.5",
-                "intensity_max_longitude\t14.5",
                 "intensity_max_latitude\t30.5",
+                "intensity_max_longitude\t14.5",
             ]
         )
         + "\n",
@@ -79,10 +79,10 @@ def test_update_solar_prominence_history_prunes_from_latest_obs_time(tmp_path: P
     update_history(current_file, history_file, hours=120)
 
     assert history_file.read_text(encoding="utf-8") == (
-        "obs_time\tintensity_max\tintensity_max_longitude\tintensity_max_latitude\n"
+        "obs_time\tintensity_max\tintensity_max_latitude\tintensity_max_longitude\n"
         "2026-04-20T12:00:00\t20\t\t\n"
         "2026-04-21T12:00:00\t30\t\t\n"
-        "2026-04-25T12:00:00\t451\t15\t31\n"
+        "2026-04-25T12:00:00\t451\t31\t15\n"
     )
 
 
