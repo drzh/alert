@@ -184,6 +184,56 @@ def test_atmospheric_optics_provider_filters_by_peak_threshold_and_selected_phen
     assert "Prediction time: 2026-04-13T18:00:00Z" in items[0].message
 
 
+def test_atmospheric_optics_provider_defaults_to_all_payload_phenomena() -> None:
+    items = atmospheric_optics_provider.parse_items(
+        TargetConfig(
+            url="atmospheric-optics://home",
+            threshold=0.8,
+            options={
+                "lat": 32.82,
+                "lon": -96.82,
+                "mode": "observed",
+            },
+        ),
+        """
+        {
+          "request": {
+            "mode": "observed",
+            "prediction_time": "2026-04-13T18:00:00Z",
+            "location": {"lat": 32.82, "lon": -96.82}
+          },
+          "phenomena": [
+            {
+              "id": "halo",
+              "label": "Halo",
+              "current": {"probability": 0.7, "confidence": 0.9},
+              "peak": {"probability": 0.801, "time": "2026-04-13T19:00:00Z"},
+              "timeline": []
+            },
+            {
+              "id": "rainbow",
+              "label": "Rainbow",
+              "current": {"probability": 0.9, "confidence": 0.8},
+              "peak": {"probability": 0.92, "time": "2026-04-13T20:00:00Z"},
+              "timeline": []
+            },
+            {
+              "id": "fogbow",
+              "label": "Fogbow",
+              "current": {"probability": 0.5, "confidence": 0.7},
+              "peak": {"probability": 0.79, "time": "2026-04-13T21:00:00Z"},
+              "timeline": []
+            }
+          ],
+          "sources": []
+        }
+        """,
+    )
+
+    assert [item.metadata["phenomenon"] for item in items] == ["halo", "rainbow"]
+    assert [item.value for item in items] == ["0.801", "0.920"]
+
+
 def test_atmospheric_optics_provider_rejects_unknown_selected_phenomena() -> None:
     with pytest.raises(ValueError):
         atmospheric_optics_provider.parse_items(
