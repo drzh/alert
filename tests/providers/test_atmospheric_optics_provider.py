@@ -234,6 +234,61 @@ def test_atmospheric_optics_provider_defaults_to_all_payload_phenomena() -> None
     assert [item.value for item in items] == ["0.801", "0.920"]
 
 
+def test_atmospheric_optics_provider_uses_body_altitude_per_combined_phenomenon() -> None:
+    items = atmospheric_optics_provider.parse_items(
+        TargetConfig(
+            url="atmospheric-optics://home",
+            threshold=0.8,
+            options={
+                "lat": 32.82,
+                "lon": -96.82,
+                "mode": "observed",
+            },
+        ),
+        """
+        {
+          "request": {
+            "mode": "observed",
+            "prediction_time": "2026-04-13T18:00:00Z",
+            "location": {"lat": 32.82, "lon": -96.82},
+            "options": {
+              "illumination": "solar,lunar"
+            }
+          },
+          "celestial": {
+            "sun": {"altitude": 21.4},
+            "moon": {"altitude": 12.2}
+          },
+          "phenomena": [
+            {
+              "id": "halo",
+              "label": "Halo",
+              "current": {"probability": 0.9},
+              "peak": {"probability": 0.9, "time": "2026-04-13T19:00:00Z"},
+              "timeline": []
+            },
+            {
+              "id": "lunar_halo",
+              "label": "Lunar Halo",
+              "current": {"probability": 0.88},
+              "peak": {"probability": 0.88, "time": "2026-04-13T20:00:00Z"},
+              "timeline": []
+            }
+          ],
+          "sources": []
+        }
+        """,
+    )
+
+    assert [item.metadata["phenomenon"] for item in items] == ["halo", "lunar_halo"]
+    assert items[0].metadata["primary_altitude"] == pytest.approx(21.4)
+    assert items[0].metadata["illumination"] == "solar,lunar"
+    assert "Sun altitude: 21.4 deg" in items[0].message
+    assert items[1].metadata["primary_altitude"] == pytest.approx(12.2)
+    assert items[1].metadata["illumination"] == "solar,lunar"
+    assert "Moon altitude: 12.2 deg" in items[1].message
+
+
 def test_atmospheric_optics_provider_rejects_unknown_selected_phenomena() -> None:
     with pytest.raises(ValueError):
         atmospheric_optics_provider.parse_items(

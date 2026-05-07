@@ -15,6 +15,7 @@ from alert.providers.atmospheric_optics import PROVIDER
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ROUND_DECIMALS = 3
+DEFAULT_ILLUMINATION = "solar,lunar"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -46,7 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--illumination",
-        choices=("solar", "lunar"),
+        choices=("solar", "lunar", DEFAULT_ILLUMINATION),
         help="Optional illumination override for the exported predictor run.",
     )
     return parser
@@ -81,7 +82,7 @@ def _normalize_target(target) -> dict[str, object]:
         "mode": str(options.get("mode", "observed")),
     }
     if "illumination" in options:
-        normalized["illumination"] = str(options.get("illumination", "solar"))
+        normalized["illumination"] = str(options.get("illumination", DEFAULT_ILLUMINATION))
     configured_phenomena = options.get("phenomena")
     if isinstance(configured_phenomena, (list, tuple)):
         normalized["phenomena"] = [
@@ -121,7 +122,7 @@ def _target_with_illumination_override(target: TargetConfig, illumination: str |
     if not illumination:
         return target
     updated_options = dict(target.options)
-    previous_illumination = str(updated_options.get("illumination", "solar")).strip().lower()
+    previous_illumination = str(updated_options.get("illumination", DEFAULT_ILLUMINATION)).strip().lower()
     updated_options["illumination"] = illumination
     if previous_illumination != illumination and "phenomena" in updated_options:
         updated_options.pop("phenomena", None)

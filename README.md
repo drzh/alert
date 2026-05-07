@@ -112,7 +112,7 @@ Relative `db_file`, `*_file`, `*_path`, and `*_dir` values are resolved relative
 - `solar_prominence`
   Supports a local file target plus `state_file`, `attachment_path`, `time_threshold_minutes`, `remove_threshold_minutes`, `distance_threshold`, and `area_threshold`.
 - `atmospheric_optics`
-  Runs a sibling `atmospheric_optics` predictor checkout with target options such as `lat`, `lon`, `mode`, `project_dir`, `download_dir`, `keep_downloaded_files`, and `phenomena`.
+  Runs a sibling `atmospheric_optics` predictor checkout with target options such as `lat`, `lon`, `mode`, `illumination`, `project_dir`, `download_dir`, `keep_downloaded_files`, and `phenomena`. The provider defaults to the combined `solar,lunar` predictor output.
 - `keep_records`
   Can be raised per source if you want legacy retention like `1000000`.
 

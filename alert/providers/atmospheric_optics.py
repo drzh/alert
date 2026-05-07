@@ -13,6 +13,14 @@ from alert.providers.base import AlertProvider
 
 WEATHER_MODES = {"forecast", "observed"}
 ILLUMINATION_MODES = {"solar", "lunar"}
+DEFAULT_ILLUMINATION = "solar,lunar"
+LUNAR_PHENOMENA = {
+    "lunar_halo",
+    "paraselenae",
+    "lunar_pillar",
+    "lunar_corona",
+    "moonbow",
+}
 DEFAULT_PROJECT_DIR = Path(__file__).resolve().parents[3] / "atmospheric_optics"
 PREDICTOR_CLI = Path("cli") / "command.py"
 
@@ -100,9 +108,7 @@ class AtmosphericOpticsProvider(AlertProvider):
         source_signature = _source_signature(sources)
         source_summary = _source_summary(sources)
         celestial = _normalize_celestial(payload.get("celestial"))
-        illumination = _resolve_illumination(target)
-        primary_body = "moon" if illumination == "lunar" else "sun"
-        primary_altitude = _to_float(celestial.get(primary_body, {}).get("altitude"))
+        illumination = _payload_illumination(request) or _resolve_illumination(target)
         phenomenon_items = _phenomena_by_id(payload.get("phenomena"))
         selected_phenomena = _selected_phenomena(target, tuple(phenomenon_items))
 
@@ -113,6 +119,8 @@ class AtmosphericOpticsProvider(AlertProvider):
                 continue
 
             label = _entry_label(phenomenon, entry)
+            primary_body = _primary_body_for_phenomenon(phenomenon, illumination)
+            primary_altitude = _to_float(celestial.get(primary_body, {}).get("altitude"))
             current = entry.get("current") if isinstance(entry.get("current"), dict) else {}
             peak = entry.get("peak") if isinstance(entry.get("peak"), dict) else {}
             current_probability = _to_float(current.get("probability"))
@@ -163,6 +171,7 @@ class AtmosphericOpticsProvider(AlertProvider):
                         "label": label,
                         "category": _to_string(entry.get("category")),
                         "mode": mode,
+                        "illumination": illumination,
                         "lat": lat,
                         "lon": lon,
                         "probability": round(peak_probability, 3),
@@ -247,13 +256,50 @@ def _resolve_mode(target: TargetConfig) -> str:
 
 
 def _resolve_illumination(target: TargetConfig) -> str:
-    illumination = (option_str(target, "illumination") or "solar").lower()
-    if illumination not in ILLUMINATION_MODES:
-        expected = ", ".join(sorted(ILLUMINATION_MODES))
+    return _normalize_illumination(option_str(target, "illumination") or DEFAULT_ILLUMINATION)
+
+
+def _payload_illumination(request: dict[str, object]) -> str:
+    options = request.get("options")
+    if not isinstance(options, dict):
+        return ""
+    value = options.get("illumination")
+    if value is None:
+        return ""
+    return _normalize_illumination(str(value))
+
+
+def _normalize_illumination(value: str) -> str:
+    illuminations: list[str] = []
+    invalid: list[str] = []
+    for part in str(value).split(","):
+        illumination = part.strip().lower()
+        if not illumination:
+            continue
+        if illumination not in ILLUMINATION_MODES:
+            invalid.append(illumination)
+            continue
+        if illumination not in illuminations:
+            illuminations.append(illumination)
+    if invalid:
+        expected = ", ".join(sorted(ILLUMINATION_MODES) + [DEFAULT_ILLUMINATION])
         raise ValueError(
-            f"Unsupported atmospheric_optics illumination '{illumination}'. Expected one of: {expected}"
+            f"Unsupported atmospheric_optics illumination '{value}'. Expected one of: {expected}"
         )
-    return illumination
+    if not illuminations:
+        return DEFAULT_ILLUMINATION
+    return ",".join(illuminations)
+
+
+def _primary_body_for_phenomenon(phenomenon: str, illumination: str) -> str:
+    illuminations = tuple(part for part in illumination.split(",") if part)
+    if illuminations == ("lunar",):
+        return "moon"
+    if illuminations == ("solar",):
+        return "sun"
+    if phenomenon in LUNAR_PHENOMENA or phenomenon.startswith("lunar_"):
+        return "moon"
+    return "sun"
 
 
 def _selected_phenomena(target: TargetConfig, available: tuple[str, ...]) -> tuple[str, ...]:

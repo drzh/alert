@@ -169,7 +169,7 @@ timeout_seconds = 180
 lat = 32.82
 lon = -96.82
 mode = "observed"
-illumination = "solar"
+illumination = "solar,lunar"
 project_dir = "../atmospheric_optics"
 phenomena = [
   "halo",
@@ -181,4 +181,9 @@ phenomena = [
   "crepuscular_rays",
   "rainbow",
   "fogbow",
+  "lunar_halo",
+  "paraselenae",
+  "lunar_pillar",
+  "lunar_corona",
+  "moonbow",
 ]
