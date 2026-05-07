@@ -14,6 +14,7 @@ from alert.providers.base import AlertProvider
 WEATHER_MODES = {"forecast", "observed"}
 ILLUMINATION_MODES = {"solar", "lunar"}
 DEFAULT_PROJECT_DIR = Path(__file__).resolve().parents[3] / "atmospheric_optics"
+PREDICTOR_CLI = Path("cli") / "command.py"
 
 
 class AtmosphericOpticsProvider(AlertProvider):
@@ -28,7 +29,7 @@ class AtmosphericOpticsProvider(AlertProvider):
         mode = _resolve_mode(target)
         illumination = _resolve_illumination(target)
         project_dir = _resolve_project_dir(target)
-        cli_path = project_dir / "cli" / "main.py"
+        cli_path = project_dir / PREDICTOR_CLI
         if not cli_path.is_file():
             raise FileNotFoundError(f"atmospheric_optics CLI not found: {cli_path}")
 

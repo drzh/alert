@@ -12,7 +12,7 @@ def test_atmospheric_optics_provider_runs_local_predictor(monkeypatch, tmp_path)
     project_dir = tmp_path / "atmospheric_optics"
     cli_dir = project_dir / "cli"
     cli_dir.mkdir(parents=True)
-    (cli_dir / "main.py").write_text("print('ok')\n", encoding="utf-8")
+    (cli_dir / "command.py").write_text("print('ok')\n", encoding="utf-8")
 
     captured: dict[str, object] = {}
 
@@ -47,7 +47,7 @@ def test_atmospheric_optics_provider_runs_local_predictor(monkeypatch, tmp_path)
     assert content == '{"phenomena": [], "sources": []}'
     assert captured["command"] == [
         "/usr/bin/python3",
-        str(cli_dir / "main.py"),
+        str(cli_dir / "command.py"),
         "--lat",
         "32.82",
         "--lon",
