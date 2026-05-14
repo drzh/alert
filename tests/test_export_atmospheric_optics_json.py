@@ -126,6 +126,28 @@ def test_build_export_payload_preserves_target_illumination_when_present() -> No
     assert result["target"]["illumination"] == "lunar"
 
 
+def test_build_export_payload_supports_multiple_target_locations() -> None:
+    source = SimpleNamespace(name="atmospheric_optics")
+    target = SimpleNamespace(
+        name="Home",
+        threshold=0.8,
+        options={
+            "mode": "observed",
+            "lat": [32.847, 30.46],
+            "lon": [-96.806, -97.80],
+            "site": ["Dallas", "Austin"],
+        },
+    )
+
+    result = _build_export_payload(source, target, {"locations": []})
+
+    assert result["target"]["locations"] == [
+        {"lat": 32.847, "lon": -96.806, "site": "Dallas"},
+        {"lat": 30.46, "lon": -97.8, "site": "Austin"},
+    ]
+    assert "location" not in result["target"]
+
+
 def test_target_with_illumination_override_updates_target_options() -> None:
     target = TargetConfig(
         url="atmospheric-optics://home",

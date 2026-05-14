@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -32,8 +33,7 @@ class AtmosphericOpticsProvider(AlertProvider):
     def fetch_content(self, target: TargetConfig, http_client: object) -> str:
         del http_client
 
-        lat = _require_float_option(target, "lat")
-        lon = _require_float_option(target, "lon")
+        locations = _resolve_locations(target)
         mode = _resolve_mode(target)
         illumination = _resolve_illumination(target)
         project_dir = _resolve_project_dir(target)
@@ -54,16 +54,21 @@ class AtmosphericOpticsProvider(AlertProvider):
             "keep_downloaded_files",
             default=bool(download_dir),
         )
+        lat_values = _join_csv(location["lat"] for location in locations)
+        lon_values = _join_csv(location["lon"] for location in locations)
         command = [
             python_path,
             str(cli_path),
             "--lat",
-            str(lat),
-            "--lon",
-            str(lon),
-            "--mode",
-            mode,
+            lat_values,
         ]
+        if lon_values.startswith("-") and "," in lon_values:
+            command.append(f"--lon={lon_values}")
+        else:
+            command.extend(["--lon", lon_values])
+        command.extend(["--mode", mode])
+        if _location_sites_configured(target):
+            command.extend(["--site", _join_csv(location["site"] for location in locations)])
         command.extend(["--illumination", illumination])
         if at_time:
             command.extend(["--at-time", at_time])
@@ -97,99 +102,9 @@ class AtmosphericOpticsProvider(AlertProvider):
 
     def parse_items(self, target: TargetConfig, content: str) -> list[AlertItem]:
         payload = _parse_payload(content)
-        threshold = target.threshold if target.threshold is not None else 0.8
-        request = _request_payload(payload)
-        mode = str(request.get("mode", _resolve_mode(target))).strip().lower() or _resolve_mode(target)
-        prediction_time = str(request.get("prediction_time", "")).strip()
-        location = _request_location(request)
-        lat = location.get("lat", _require_float_option(target, "lat"))
-        lon = location.get("lon", _require_float_option(target, "lon"))
-        sources = _normalize_sources(payload.get("sources"))
-        source_signature = _source_signature(sources)
-        source_summary = _source_summary(sources)
-        celestial = _normalize_celestial(payload.get("celestial"))
-        illumination = _payload_illumination(request) or _resolve_illumination(target)
-        phenomenon_items = _phenomena_by_id(payload.get("phenomena"))
-        selected_phenomena = _selected_phenomena(target, tuple(phenomenon_items))
-
         items: list[AlertItem] = []
-        for phenomenon in selected_phenomena:
-            entry = phenomenon_items.get(phenomenon)
-            if entry is None:
-                continue
-
-            label = _entry_label(phenomenon, entry)
-            primary_body = _primary_body_for_phenomenon(phenomenon, illumination)
-            primary_altitude = _to_float(celestial.get(primary_body, {}).get("altitude"))
-            current = entry.get("current") if isinstance(entry.get("current"), dict) else {}
-            peak = entry.get("peak") if isinstance(entry.get("peak"), dict) else {}
-            current_probability = _to_float(current.get("probability"))
-            peak_probability = _to_peak_probability(entry)
-            if peak_probability is None or peak_probability < threshold:
-                continue
-
-            confidence = _to_float(current.get("confidence"))
-            reason = _to_string(current.get("reason"))
-            peak_time = _to_string(peak.get("time"))
-            timeline = _to_timeline(entry.get("timeline"))
-            spatial_context = _to_spatial_context(current.get("spatial_context"))
-            item_id = _build_item_id(
-                phenomenon=phenomenon,
-                mode=mode,
-                source_signature=source_signature,
-                peak_time=peak_time,
-                probability=peak_probability,
-            )
-            message_parts = [
-                f"{label}: peak probability {peak_probability:.3f}",
-                f"Threshold: {threshold:.3f}",
-                f"Mode: {mode}",
-                f"Location: {lat:.4f}, {lon:.4f}",
-            ]
-            if current_probability is not None:
-                message_parts.append(f"Current probability: {current_probability:.3f}")
-            if peak_time:
-                message_parts.append(f"Peak time: {peak_time}")
-            if confidence is not None:
-                message_parts.append(f"Confidence: {confidence:.3f}")
-            if primary_altitude is not None:
-                message_parts.append(f"{primary_body.title()} altitude: {primary_altitude:.1f} deg")
-            if reason:
-                message_parts.append(f"Reason: {reason}")
-            if prediction_time:
-                message_parts.append(f"Prediction time: {prediction_time}")
-            if source_summary:
-                message_parts.append(f"Sources: {source_summary}")
-            items.append(
-                AlertItem(
-                    item_id=item_id,
-                    message="<br/>".join(message_parts),
-                    value=f"{peak_probability:.3f}",
-                    occurred_at=peak_time or (sources[0]["timestamp"] if sources else None),
-                    metadata={
-                        "phenomenon": phenomenon,
-                        "label": label,
-                        "category": _to_string(entry.get("category")),
-                        "mode": mode,
-                        "illumination": illumination,
-                        "lat": lat,
-                        "lon": lon,
-                        "probability": round(peak_probability, 3),
-                        "current_probability": round(current_probability, 3) if current_probability is not None else None,
-                        "peak_probability": round(peak_probability, 3),
-                        "peak_time": peak_time,
-                        "timeline": timeline,
-                        "spatial_context": spatial_context,
-                        "confidence": round(confidence, 3) if confidence is not None else None,
-                        "celestial": celestial,
-                        "primary_altitude": round(primary_altitude, 3) if primary_altitude is not None else None,
-                        "reason": reason,
-                        "prediction_time": prediction_time,
-                        "sources": [dict(source) for source in sources],
-                        "source_signature": source_signature,
-                    },
-                )
-            )
+        for prediction_payload, site_hint in _prediction_payloads(payload):
+            items.extend(_parse_prediction_items(target, prediction_payload, site_hint))
         return items
 
     def build_subject(
@@ -210,6 +125,118 @@ class AtmosphericOpticsProvider(AlertProvider):
         return f"{subject}: {', '.join(labels)}"
 
 
+def _parse_prediction_items(
+    target: TargetConfig,
+    payload: dict[str, object],
+    site_hint: str = "",
+) -> list[AlertItem]:
+    threshold = target.threshold if target.threshold is not None else 0.8
+    request = _request_payload(payload)
+    mode = str(request.get("mode", _resolve_mode(target))).strip().lower() or _resolve_mode(target)
+    prediction_time = str(request.get("prediction_time", "")).strip()
+    location = _request_location(request)
+    lat = location.get("lat", _require_float_option(target, "lat"))
+    lon = location.get("lon", _require_float_option(target, "lon"))
+    site = _meaningful_site(site_hint or _request_site(request) or _to_string(payload.get("site")))
+    sources = _normalize_sources(payload.get("sources"))
+    source_signature = _source_signature(sources)
+    source_summary = _source_summary(sources)
+    celestial = _normalize_celestial(payload.get("celestial"))
+    illumination = _payload_illumination(request) or _resolve_illumination(target)
+    phenomenon_items = _phenomena_by_id(payload.get("phenomena"))
+    selected_phenomena = _selected_phenomena(target, tuple(phenomenon_items))
+
+    items: list[AlertItem] = []
+    for phenomenon in selected_phenomena:
+        entry = phenomenon_items.get(phenomenon)
+        if entry is None:
+            continue
+
+        label = _entry_label(phenomenon, entry)
+        primary_body = _primary_body_for_phenomenon(phenomenon, illumination)
+        primary_altitude = _to_float(celestial.get(primary_body, {}).get("altitude"))
+        current = entry.get("current") if isinstance(entry.get("current"), dict) else {}
+        peak = entry.get("peak") if isinstance(entry.get("peak"), dict) else {}
+        current_probability = _to_float(current.get("probability"))
+        peak_probability = _to_peak_probability(entry)
+        if peak_probability is None or peak_probability < threshold:
+            continue
+
+        confidence = _to_float(current.get("confidence"))
+        reason = _to_string(current.get("reason"))
+        peak_time = _to_string(peak.get("time"))
+        timeline = _to_timeline(entry.get("timeline"))
+        spatial_context = _to_spatial_context(current.get("spatial_context"))
+        item_id = _build_item_id(
+            phenomenon=phenomenon,
+            mode=mode,
+            source_signature=source_signature,
+            peak_time=peak_time,
+            probability=peak_probability,
+            site=site,
+            lat=lat,
+            lon=lon,
+        )
+        message_parts = [
+            f"{label}: peak probability {peak_probability:.3f}",
+            f"Threshold: {threshold:.3f}",
+        ]
+        if site:
+            message_parts.append(f"Site: {site}")
+        message_parts.extend(
+            [
+                f"Mode: {mode}",
+                f"Location: {lat:.4f}, {lon:.4f}",
+            ]
+        )
+        if current_probability is not None:
+            message_parts.append(f"Current probability: {current_probability:.3f}")
+        if peak_time:
+            message_parts.append(f"Peak time: {peak_time}")
+        if confidence is not None:
+            message_parts.append(f"Confidence: {confidence:.3f}")
+        if primary_altitude is not None:
+            message_parts.append(f"{primary_body.title()} altitude: {primary_altitude:.1f} deg")
+        if reason:
+            message_parts.append(f"Reason: {reason}")
+        if prediction_time:
+            message_parts.append(f"Prediction time: {prediction_time}")
+        if source_summary:
+            message_parts.append(f"Sources: {source_summary}")
+        items.append(
+            AlertItem(
+                item_id=item_id,
+                message="<br/>".join(message_parts),
+                value=f"{peak_probability:.3f}",
+                occurred_at=peak_time or (sources[0]["timestamp"] if sources else None),
+                metadata={
+                    "phenomenon": phenomenon,
+                    "label": label,
+                    "category": _to_string(entry.get("category")),
+                    "mode": mode,
+                    "illumination": illumination,
+                    "site": site,
+                    "lat": lat,
+                    "lon": lon,
+                    "probability": round(peak_probability, 3),
+                    "current_probability": round(current_probability, 3) if current_probability is not None else None,
+                    "peak_probability": round(peak_probability, 3),
+                    "peak_time": peak_time,
+                    "timeline": timeline,
+                    "spatial_context": spatial_context,
+                    "confidence": round(confidence, 3) if confidence is not None else None,
+                    "celestial": celestial,
+                    "primary_altitude": round(primary_altitude, 3) if primary_altitude is not None else None,
+                    "reason": reason,
+                    "prediction_time": prediction_time,
+                    "sources": [dict(source) for source in sources],
+                    "source_signature": source_signature,
+                },
+            )
+        )
+    return items
+
+
 def _parse_payload(content: str) -> dict[str, object]:
     try:
         payload = json.loads(content)
@@ -218,6 +245,25 @@ def _parse_payload(content: str) -> dict[str, object]:
     if not isinstance(payload, dict):
         raise ValueError("Atmospheric optics payload must be a JSON object.")
     return payload
+
+
+def _prediction_payloads(payload: dict[str, object]) -> tuple[tuple[dict[str, object], str], ...]:
+    locations = payload.get("locations")
+    if not isinstance(locations, list):
+        return ((payload, _to_string(payload.get("site"))),)
+
+    predictions: list[tuple[dict[str, object], str]] = []
+    for entry in locations:
+        if not isinstance(entry, dict):
+            continue
+        site = _to_string(entry.get("site"))
+        prediction = entry.get("prediction")
+        if isinstance(prediction, dict):
+            predictions.append((prediction, site))
+        elif isinstance(entry.get("phenomena"), list) or isinstance(entry.get("request"), dict):
+            predictions.append((entry, site))
+
+    return tuple(predictions) or ((payload, _to_string(payload.get("site"))),)
 
 
 def _request_payload(payload: dict[str, object]) -> dict[str, object]:
@@ -238,6 +284,77 @@ def _request_location(request: dict[str, object]) -> dict[str, float]:
         except (KeyError, TypeError, ValueError):
             continue
     return normalized
+
+
+def _request_site(request: dict[str, object]) -> str:
+    location = request.get("location")
+    if not isinstance(location, dict):
+        return ""
+    return _to_string(location.get("site"))
+
+
+def _resolve_locations(target: TargetConfig) -> tuple[dict[str, object], ...]:
+    latitudes = _require_float_values(target, "lat")
+    longitudes = _require_float_values(target, "lon")
+    if len(latitudes) != len(longitudes):
+        raise ValueError(
+            "atmospheric_optics target options 'lat' and 'lon' must contain the same number of values."
+        )
+
+    site_values = _option_parts(target, "site")
+    if not site_values:
+        sites = tuple("NA" for _ in latitudes)
+    elif len(site_values) != len(latitudes):
+        raise ValueError(
+            "atmospheric_optics target option 'site' must contain one value for each lat/lon pair."
+        )
+    else:
+        sites = site_values
+
+    return tuple(
+        {
+            "lat": latitudes[index],
+            "lon": longitudes[index],
+            "site": sites[index],
+        }
+        for index in range(len(latitudes))
+    )
+
+
+def _location_sites_configured(target: TargetConfig) -> bool:
+    return bool(_option_parts(target, "site"))
+
+
+def _option_parts(target: TargetConfig, key: str) -> tuple[str, ...]:
+    value = target.options.get(key)
+    if value is None:
+        return ()
+    raw_values = value if isinstance(value, (list, tuple)) else (value,)
+    parts: list[str] = []
+    for raw_value in raw_values:
+        for part in str(raw_value).split(","):
+            normalized = part.strip()
+            if normalized:
+                parts.append(normalized)
+    return tuple(parts)
+
+
+def _require_float_values(target: TargetConfig, key: str) -> tuple[float, ...]:
+    values = _option_parts(target, key)
+    if not values:
+        raise ValueError(f"atmospheric_optics target option '{key}' must contain at least one numeric value.")
+
+    parsed: list[float] = []
+    for value in values:
+        try:
+            parsed.append(float(value))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"atmospheric_optics target option '{key}' must be numeric.") from exc
+    return tuple(parsed)
+
+
+def _join_csv(values) -> str:
+    return ",".join(str(value) for value in values)
 
 
 def _resolve_project_dir(target: TargetConfig) -> Path:
@@ -331,11 +448,7 @@ def _selected_phenomena(target: TargetConfig, available: tuple[str, ...]) -> tup
 
 
 def _require_float_option(target: TargetConfig, key: str) -> float:
-    value = target.options.get(key)
-    try:
-        return float(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"atmospheric_optics target option '{key}' must be numeric.") from exc
+    return _require_float_values(target, key)[0]
 
 
 def _option_bool(target: TargetConfig, key: str, default: bool) -> bool:
@@ -427,9 +540,34 @@ def _build_item_id(
     source_signature: str,
     peak_time: str,
     probability: float,
+    site: str = "",
+    lat: float | None = None,
+    lon: float | None = None,
 ) -> str:
     suffix = source_signature or peak_time or f"probability@{probability:.3f}"
+    location_signature = _location_signature(site, lat, lon)
+    if location_signature:
+        suffix = f"{location_signature}:{suffix}"
     return f"{phenomenon}:{mode}:{suffix}"
+
+
+def _location_signature(site: str, lat: float | None, lon: float | None) -> str:
+    del lat, lon
+    if site:
+        return _slug(site)
+    return ""
+
+
+def _meaningful_site(site: str) -> str:
+    normalized = _to_string(site)
+    if normalized.upper() == "NA":
+        return ""
+    return normalized
+
+
+def _slug(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", value.strip().lower()).strip("-")
+    return slug or "site"
 
 
 def _phenomena_by_id(raw_phenomena: object) -> dict[str, dict[str, object]]:

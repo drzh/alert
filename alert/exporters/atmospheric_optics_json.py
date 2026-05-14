@@ -70,17 +70,57 @@ def _select_target(source, target_name: str):
     return source.targets[0]
 
 
+def _option_parts(options: dict[str, object], key: str) -> list[str]:
+    value = options.get(key)
+    if value is None:
+        return []
+    raw_values = value if isinstance(value, (list, tuple)) else (value,)
+    parts: list[str] = []
+    for raw_value in raw_values:
+        for part in str(raw_value).split(","):
+            normalized = part.strip()
+            if normalized:
+                parts.append(normalized)
+    return parts
+
+
+def _target_locations(options: dict[str, object]) -> list[dict[str, object]]:
+    latitudes = _option_parts(options, "lat") or ["0.0"]
+    longitudes = _option_parts(options, "lon") or ["0.0"]
+    if len(latitudes) != len(longitudes):
+        raise ValueError("atmospheric_optics lat/lon target options must have the same length.")
+
+    sites = _option_parts(options, "site")
+    if not sites:
+        sites = ["NA" for _ in latitudes]
+    if len(sites) != len(latitudes):
+        raise ValueError("atmospheric_optics site target option must match lat/lon length.")
+
+    locations: list[dict[str, object]] = []
+    for index, latitude in enumerate(latitudes):
+        location: dict[str, object] = {
+            "lat": float(latitude),
+            "lon": float(longitudes[index]),
+        }
+        site = sites[index]
+        if site and site.upper() != "NA":
+            location["site"] = site
+        locations.append(location)
+    return locations
+
+
 def _normalize_target(target) -> dict[str, object]:
     options = target.options
+    locations = _target_locations(options)
     normalized = {
         "name": target.name or "",
         "threshold": float(target.threshold) if target.threshold is not None else None,
-        "location": {
-            "lat": float(options.get("lat", 0.0)),
-            "lon": float(options.get("lon", 0.0)),
-        },
         "mode": str(options.get("mode", "observed")),
     }
+    if len(locations) == 1:
+        normalized["location"] = locations[0]
+    else:
+        normalized["locations"] = locations
     if "illumination" in options:
         normalized["illumination"] = str(options.get("illumination", DEFAULT_ILLUMINATION))
     configured_phenomena = options.get("phenomena")

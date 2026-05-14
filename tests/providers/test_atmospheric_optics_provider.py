@@ -70,6 +70,51 @@ def test_atmospheric_optics_provider_runs_local_predictor(monkeypatch, tmp_path)
     assert captured["timeout"] == 45.0
 
 
+def test_atmospheric_optics_provider_runs_local_predictor_for_multiple_sites(monkeypatch, tmp_path) -> None:
+    project_dir = tmp_path / "atmospheric_optics"
+    cli_dir = project_dir / "cli"
+    cli_dir.mkdir(parents=True)
+    (cli_dir / "command.py").write_text("print('ok')\n", encoding="utf-8")
+
+    captured: dict[str, object] = {}
+
+    def fake_run(command: list[str], **kwargs: object) -> SimpleNamespace:
+        captured["command"] = command
+        captured.update(kwargs)
+        return SimpleNamespace(returncode=0, stdout='{"locations": []}', stderr="")
+
+    monkeypatch.setattr("alert.providers.atmospheric_optics.subprocess.run", fake_run)
+
+    atmospheric_optics_provider.fetch_content(
+        TargetConfig(
+            url="atmospheric-optics://home",
+            options={
+                "lat": [32.847, 30.46],
+                "lon": [-96.806, -97.80],
+                "site": ["Dallas", "Austin"],
+                "mode": "observed",
+                "project_dir": str(project_dir),
+                "python_path": "/usr/bin/python3",
+            },
+        ),
+        http_client=object(),
+    )
+
+    assert captured["command"] == [
+        "/usr/bin/python3",
+        str(cli_dir / "command.py"),
+        "--lat",
+        "32.847,30.46",
+        "--lon=-96.806,-97.8",
+        "--mode",
+        "observed",
+        "--site",
+        "Dallas,Austin",
+        "--illumination",
+        "solar,lunar",
+    ]
+
+
 def test_atmospheric_optics_provider_rejects_unknown_illumination() -> None:
     with pytest.raises(ValueError):
         atmospheric_optics_provider.fetch_content(
@@ -182,6 +227,81 @@ def test_atmospheric_optics_provider_filters_by_peak_threshold_and_selected_phen
     assert "peak probability 0.842" in items[0].message
     assert "Peak time: 2026-04-13T19:00:00Z" in items[0].message
     assert "Prediction time: 2026-04-13T18:00:00Z" in items[0].message
+
+
+def test_atmospheric_optics_provider_parses_multi_location_payload() -> None:
+    items = atmospheric_optics_provider.parse_items(
+        TargetConfig(
+            url="atmospheric-optics://home",
+            threshold=0.8,
+            options={
+                "lat": [32.847, 30.46],
+                "lon": [-96.806, -97.80],
+                "site": ["Dallas", "Austin"],
+                "mode": "observed",
+                "phenomena": ["halo"],
+            },
+        ),
+        """
+        {
+          "generated_at": "2026-04-13T17:00:00Z",
+          "locations": [
+            {
+              "site": "Dallas",
+              "location": {"lat": 32.847, "lon": -96.806},
+              "prediction": {
+                "request": {
+                  "mode": "observed",
+                  "prediction_time": "2026-04-13T18:00:00Z",
+                  "location": {"lat": 32.847, "lon": -96.806, "site": "Dallas"}
+                },
+                "celestial": {"sun": {"altitude": 21.4}},
+                "phenomena": [
+                  {
+                    "id": "halo",
+                    "label": "Halo",
+                    "current": {"probability": 0.8, "confidence": 0.9},
+                    "peak": {"probability": 0.9, "time": "2026-04-13T19:00:00Z"},
+                    "timeline": []
+                  }
+                ],
+                "sources": [{"id": "goes-east", "label": "GOES East", "kind": "satellite", "timestamp": "20260413 1700z"}]
+              }
+            },
+            {
+              "site": "Austin",
+              "location": {"lat": 30.46, "lon": -97.8},
+              "prediction": {
+                "request": {
+                  "mode": "observed",
+                  "prediction_time": "2026-04-13T18:00:00Z",
+                  "location": {"lat": 30.46, "lon": -97.8, "site": "Austin"}
+                },
+                "celestial": {"sun": {"altitude": 20.1}},
+                "phenomena": [
+                  {
+                    "id": "halo",
+                    "label": "Halo",
+                    "current": {"probability": 0.81, "confidence": 0.91},
+                    "peak": {"probability": 0.91, "time": "2026-04-13T19:00:00Z"},
+                    "timeline": []
+                  }
+                ],
+                "sources": [{"id": "goes-east", "label": "GOES East", "kind": "satellite", "timestamp": "20260413 1700z"}]
+              }
+            }
+          ]
+        }
+        """,
+    )
+
+    assert len(items) == 2
+    assert [item.metadata["site"] for item in items] == ["Dallas", "Austin"]
+    assert items[0].item_id == "halo:observed:dallas:goes-east@20260413 1700z"
+    assert items[1].item_id == "halo:observed:austin:goes-east@20260413 1700z"
+    assert "Site: Dallas" in items[0].message
+    assert items[1].metadata["lat"] == pytest.approx(30.46)
+    assert items[1].metadata["lon"] == pytest.approx(-97.8)
 
 
 def test_atmospheric_optics_provider_defaults_to_all_payload_phenomena() -> None:
