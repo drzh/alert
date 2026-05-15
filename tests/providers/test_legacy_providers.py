@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
+import alert.providers.solar_prominence as solar_prominence_module
 from alert.models import StoredAlert, TargetConfig
 from alert.providers.ariss import PROVIDER as ariss_provider
 from alert.providers.aurora import PROVIDER as aurora_provider
@@ -279,6 +281,101 @@ def test_solar_prominence_provider_alerts_on_high_intensity(tmp_path: Path) -> N
 
     assert "Max intensity: 1200" in items[0].message
     assert solar_prominence_provider.should_alert([], items[0], target) is True
+
+
+def test_solar_prominence_provider_ignores_stale_history_for_area_alert(tmp_path: Path) -> None:
+    target = TargetConfig(
+        url=(tmp_path / "prominence.txt").resolve().as_uri(),
+        options={
+            "remove_threshold_minutes": 60,
+            "distance_threshold": 1000,
+            "area_threshold": 1000,
+            "intensity_threshold": 100000,
+        },
+    )
+    content = "\n".join(
+        [
+            "current_time\t2026-05-15T20:37:07+00:00",
+            "intensity_max\t164",
+            "prominence_max_distance_pixels\t27",
+            "prominence_area_pixels\t1621",
+        ]
+    )
+    history = [
+        StoredAlert(
+            source_name="solar_prominence",
+            target_url=target.url,
+            item_id="2026-05-06T20:13:07+00:00",
+            message="older large event",
+            value=None,
+            occurred_at="2026-05-06T20:13:07+00:00",
+            metadata={
+                "current_time": "2026-05-06T20:13:07+00:00",
+                "prominence_area_pixels": "512844",
+                "prominence_max_distance_pixels": "314",
+                "intensity_max": "16393",
+            },
+            created_at="2026-05-06T20:13:10+00:00",
+        )
+    ]
+
+    items = solar_prominence_provider.parse_items(target, content)
+
+    assert solar_prominence_provider.should_alert(history, items[0], target) is True
+
+
+def test_solar_prominence_metrics_command_uses_target_options(monkeypatch, tmp_path: Path) -> None:
+    calculator_path = tmp_path / "calc_solar_prominence_area.py"
+    calculator_path.write_text("print('ok')\n", encoding="utf-8")
+    fits_file = tmp_path / "AIAsynoptic0304.fits"
+    output_file = tmp_path / "AIAsynoptic0304.prominence.txt"
+    plot_file = tmp_path / "AIAsynoptic0304.prominence.png"
+    target = TargetConfig(
+        url=output_file.resolve().as_uri(),
+        options={
+            "attachment_path": str(plot_file),
+            "metrics_calculator_path": str(calculator_path),
+            "metrics_extend_pixels": 12,
+            "metrics_intensity_cutoff": 21,
+            "metrics_minimal_pixels": 13,
+            "metrics_plot_width": 4,
+            "metrics_plot_height": 5,
+            "metrics_timeout_seconds": 88,
+            "metrics_python_path": "/usr/bin/python3",
+        },
+    )
+    captured: dict[str, object] = {}
+
+    def fake_run(command: list[str], **kwargs: object) -> SimpleNamespace:
+        captured["command"] = command
+        captured.update(kwargs)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(solar_prominence_module.subprocess, "run", fake_run)
+
+    solar_prominence_module.generate_metrics(target, fits_file)
+
+    assert captured["command"] == [
+        "/usr/bin/python3",
+        str(calculator_path),
+        "-e",
+        "12",
+        "-c",
+        "21",
+        "-m",
+        "13",
+        "-w",
+        "4",
+        "-h",
+        "5",
+        "-i",
+        str(fits_file),
+        "-o",
+        str(output_file),
+        "-p",
+        str(plot_file),
+    ]
+    assert captured["timeout"] == 88.0
 
 
 def test_solar_prominence_provider_removes_stale_state_after_no_alert(tmp_path: Path) -> None:

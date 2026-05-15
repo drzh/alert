@@ -83,6 +83,7 @@ provider = "solar_prominence"
 url = "./data/current.txt"
 state_file = "state/solar_prominence.txt"
 attachment_path = "images/prominence.png"
+metrics_calculator_path = "../hobby/astro/calc_solar_prominence_area.py"
 project_dir = "../atmospheric_optics"
 download_dir = "cache/atmospheric_optics"
 """,
@@ -95,5 +96,6 @@ download_dir = "cache/atmospheric_optics"
     assert target.url == (tmp_path / "data" / "current.txt").resolve().as_uri()
     assert target.options["state_file"] == str((tmp_path / "state" / "solar_prominence.txt").resolve())
     assert target.options["attachment_path"] == str((tmp_path / "images" / "prominence.png").resolve())
+    assert target.options["metrics_calculator_path"] == str((tmp_path.parent / "hobby" / "astro" / "calc_solar_prominence_area.py").resolve())
     assert target.options["project_dir"] == str((tmp_path.parent / "atmospheric_optics").resolve())
     assert target.options["download_dir"] == str((tmp_path / "cache" / "atmospheric_optics").resolve())

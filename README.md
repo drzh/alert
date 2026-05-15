@@ -108,7 +108,7 @@ Relative `db_file`, `*_file`, `*_path`, and `*_dir` values are resolved relative
 - `solarspot`
   Supports `state_file` for the old `solarspot.val` workflow.
 - `solar_prominence`
-  Supports a local file target plus `state_file`, `attachment_path`, `time_threshold_minutes`, `remove_threshold_minutes`, `distance_threshold`, `area_threshold`, and `intensity_threshold`.
+  Supports a local file target plus `state_file`, `attachment_path`, `time_threshold_minutes`, `remove_threshold_minutes`, `distance_threshold`, `area_threshold`, `intensity_threshold`, and metrics-generation options such as `metrics_intensity_cutoff`, `metrics_minimal_pixels`, and `metrics_extend_pixels`.
 - `atmospheric_optics`
   Runs a sibling `atmospheric_optics` predictor checkout with target options such as `lat`, `lon`, `site`, `mode`, `illumination`, `project_dir`, `download_dir`, `keep_downloaded_files`, and `phenomena`. `lat`, `lon`, and `site` may be arrays for multi-location checks. The provider defaults to the combined `solar,lunar` predictor output.
 - `keep_records`
