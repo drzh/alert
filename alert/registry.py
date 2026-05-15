@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from alert.providers import BUILTIN_PROVIDERS
+from alert.providers import load_builtin_providers
 from alert.providers.base import AlertProvider
 
-_PROVIDERS: dict[str, AlertProvider] = {provider.name: provider for provider in BUILTIN_PROVIDERS}
+_PROVIDERS: dict[str, AlertProvider] = {provider.name: provider for provider in load_builtin_providers()}
 
 
 def get_provider(name: str) -> AlertProvider:

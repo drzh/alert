@@ -1,37 +1,36 @@
 """Built-in alert providers."""
 
-from .ariss import PROVIDER as ARISS_PROVIDER
-from .atmospheric_optics import PROVIDER as ATMOSPHERIC_OPTICS_PROVIDER
-from .aurora import PROVIDER as AURORA_PROVIDER
-from .aurora_gfz import PROVIDER as AURORA_GFZ_PROVIDER
-from .bz import PROVIDER as BZ_PROVIDER
-from .cc import PROVIDER as CC_PROVIDER
-from .cl import PROVIDER as CL_PROVIDER
-from .ha_comet import PROVIDER as HA_COMET_PROVIDER
-from .rocketlaunch import PROVIDER as ROCKETLAUNCH_PROVIDER
-from .sd import PROVIDER as SD_PROVIDER
-from .solar_prominence import PROVIDER as SOLAR_PROMINENCE_PROVIDER
-from .solarspot import PROVIDER as SOLARSPOT_PROVIDER
-from .spaceweather_com import PROVIDER as SPACEWEATHER_COM_PROVIDER
-from .spaceweather_gov import PROVIDER as SPACEWEATHER_GOV_PROVIDER
-from .spaceweather_gov_alerts import PROVIDER as SPACEWEATHER_GOV_ALERTS_PROVIDER
+from __future__ import annotations
 
-BUILTIN_PROVIDERS = (
-    ARISS_PROVIDER,
-    ATMOSPHERIC_OPTICS_PROVIDER,
-    AURORA_PROVIDER,
-    AURORA_GFZ_PROVIDER,
-    BZ_PROVIDER,
-    CC_PROVIDER,
-    CL_PROVIDER,
-    HA_COMET_PROVIDER,
-    ROCKETLAUNCH_PROVIDER,
-    SD_PROVIDER,
-    SOLAR_PROMINENCE_PROVIDER,
-    SOLARSPOT_PROVIDER,
-    SPACEWEATHER_COM_PROVIDER,
-    SPACEWEATHER_GOV_PROVIDER,
-    SPACEWEATHER_GOV_ALERTS_PROVIDER,
+from importlib import import_module
+
+from alert.providers.base import AlertProvider
+
+PROVIDER_MODULES = (
+    "ariss",
+    "atmospheric_optics",
+    "aurora",
+    "aurora_gfz",
+    "bz",
+    "cc",
+    "cl",
+    "ha_comet",
+    "rocketlaunch",
+    "sd",
+    "solar_prominence",
+    "solarspot",
+    "spaceweather_com",
+    "spaceweather_gov",
+    "spaceweather_gov_alerts",
 )
 
-__all__ = ["BUILTIN_PROVIDERS"]
+
+def load_builtin_providers() -> tuple[AlertProvider, ...]:
+    providers: list[AlertProvider] = []
+    for module_name in PROVIDER_MODULES:
+        module = import_module(f"{__name__}.{module_name}")
+        providers.append(module.PROVIDER)
+    return tuple(providers)
+
+
+__all__ = ["PROVIDER_MODULES", "load_builtin_providers"]
