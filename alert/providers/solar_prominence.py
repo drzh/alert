@@ -31,6 +31,7 @@ class SolarProminenceProvider(AlertProvider):
                 item_id=current_time,
                 message=(
                     f"Solar prominence at {current_time}<br/>"
+                    f"Max intensity: {values.get('intensity_max', '0')}<br/>"
                     f"Max distance: {values.get('prominence_max_distance_pixels', '0')} pixels<br/>"
                     f"Area: {values.get('prominence_area_pixels', '0')} pixels"
                 ),
@@ -58,14 +59,18 @@ class SolarProminenceProvider(AlertProvider):
 
         current_distance = _metadata_float(item.metadata, "prominence_max_distance_pixels")
         current_area = _metadata_float(item.metadata, "prominence_area_pixels")
+        current_intensity = _metadata_float(item.metadata, "intensity_max")
         previous_distance = _mapping_float(previous, "prominence_max_distance_pixels")
         previous_area = _mapping_float(previous, "prominence_area_pixels")
+        previous_intensity = _mapping_float(previous, "intensity_max")
         distance_threshold = option_float(target, "distance_threshold", 20.0)
         area_threshold = option_float(target, "area_threshold", 2000.0)
+        intensity_threshold = option_float(target, "intensity_threshold", 1000.0)
 
         return (
             (current_distance > distance_threshold and current_distance > previous_distance)
             or (current_area > area_threshold and current_area > previous_area)
+            or (current_intensity > intensity_threshold and current_intensity > previous_intensity)
         )
 
     def after_target(

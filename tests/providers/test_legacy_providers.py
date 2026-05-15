@@ -242,6 +242,45 @@ def test_solar_prominence_provider_compares_and_updates_state(tmp_path: Path) ->
     assert "2026-04-07T19:20:00" in state_file.read_text(encoding="utf-8")
 
 
+def test_solar_prominence_provider_alerts_on_high_intensity(tmp_path: Path) -> None:
+    state_file = tmp_path / "prominence.old"
+    state_file.write_text(
+        "\n".join(
+            [
+                "current_time\t2026-04-07T19:00:00",
+                "intensity_max\t900",
+                "prominence_max_distance_pixels\t10",
+                "prominence_area_pixels\t100",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    target = TargetConfig(
+        url=(tmp_path / "prominence.txt").resolve().as_uri(),
+        options={
+            "state_file": str(state_file),
+            "time_threshold_minutes": 10,
+            "distance_threshold": 1000,
+            "area_threshold": 100000,
+            "intensity_threshold": 1000,
+        },
+    )
+    content = "\n".join(
+        [
+            "current_time\t2026-04-07T19:20:00",
+            "intensity_max\t1200",
+            "prominence_max_distance_pixels\t10",
+            "prominence_area_pixels\t100",
+        ]
+    )
+
+    items = solar_prominence_provider.parse_items(target, content)
+
+    assert "Max intensity: 1200" in items[0].message
+    assert solar_prominence_provider.should_alert([], items[0], target) is True
+
+
 def test_solar_prominence_provider_removes_stale_state_after_no_alert(tmp_path: Path) -> None:
     state_file = tmp_path / "prominence.old"
     state_file.write_text(

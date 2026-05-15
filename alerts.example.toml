@@ -155,6 +155,7 @@ time_threshold_minutes = 10
 remove_threshold_minutes = 60
 distance_threshold = 50
 area_threshold = 1000
+intensity_threshold = 1000
 
 [[sources]]
 name = "atmospheric_optics"

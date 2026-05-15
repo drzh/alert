@@ -33,8 +33,6 @@ alert/
     http.py
     notifier.py
     repository.py
-  exporters/
-    atmospheric_optics_json.py
   providers/
     ariss.py
     atmospheric_optics.py
@@ -110,7 +108,7 @@ Relative `db_file`, `*_file`, `*_path`, and `*_dir` values are resolved relative
 - `solarspot`
   Supports `state_file` for the old `solarspot.val` workflow.
 - `solar_prominence`
-  Supports a local file target plus `state_file`, `attachment_path`, `time_threshold_minutes`, `remove_threshold_minutes`, `distance_threshold`, and `area_threshold`.
+  Supports a local file target plus `state_file`, `attachment_path`, `time_threshold_minutes`, `remove_threshold_minutes`, `distance_threshold`, `area_threshold`, and `intensity_threshold`.
 - `atmospheric_optics`
   Runs a sibling `atmospheric_optics` predictor checkout with target options such as `lat`, `lon`, `site`, `mode`, `illumination`, `project_dir`, `download_dir`, `keep_downloaded_files`, and `phenomena`. `lat`, `lon`, and `site` may be arrays for multi-location checks. The provider defaults to the combined `solar,lunar` predictor output.
 - `keep_records`
