@@ -147,6 +147,7 @@ def build_metrics_command(
     *,
     output_path: Path | None = None,
     plot_path: Path | None = None,
+    carrington_path: Path | None = None,
 ) -> list[str]:
     calculator_path = Path(option_str(target, "metrics_calculator_path") or DEFAULT_METRICS_CALCULATOR)
     if not calculator_path.is_file():
@@ -155,6 +156,8 @@ def build_metrics_command(
     output = output_path or _target_file_path(target)
     configured_plot_path = option_str(target, "attachment_path")
     plot = plot_path or (Path(configured_plot_path) if configured_plot_path else None)
+    configured_carrington_path = option_str(target, "carrington_path")
+    carrington = carrington_path or (Path(configured_carrington_path) if configured_carrington_path else None)
     command = [
         option_str(target, "metrics_python_path") or sys.executable,
         str(calculator_path),
@@ -175,6 +178,8 @@ def build_metrics_command(
     ]
     if plot is not None:
         command.extend(["-p", str(plot)])
+    if carrington is not None:
+        command.extend(["--carrington", str(carrington)])
     return command
 
 
@@ -184,12 +189,14 @@ def generate_metrics(
     *,
     output_path: Path | None = None,
     plot_path: Path | None = None,
+    carrington_path: Path | None = None,
 ) -> None:
     command = build_metrics_command(
         target,
         fits_file,
         output_path=output_path,
         plot_path=plot_path,
+        carrington_path=carrington_path,
     )
     completed = subprocess.run(
         command,
@@ -211,6 +218,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--fits-file", required=True, type=Path, help="Input FITS file.")
     parser.add_argument("--output", type=Path, help="Optional metrics output file override. Defaults to the target URL.")
     parser.add_argument("--plot", type=Path, help="Optional plot output override. Defaults to attachment_path.")
+    parser.add_argument("--carrington", type=Path, help="Optional Carrington layout output override. Defaults to carrington_path.")
     return parser
 
 
@@ -224,6 +232,7 @@ def main(argv: list[str] | None = None) -> int:
         args.fits_file.expanduser().resolve(),
         output_path=args.output.expanduser().resolve() if args.output else None,
         plot_path=args.plot.expanduser().resolve() if args.plot else None,
+        carrington_path=args.carrington.expanduser().resolve() if args.carrington else None,
     )
     return 0
 

@@ -333,10 +333,12 @@ def test_solar_prominence_metrics_command_uses_target_options(monkeypatch, tmp_p
     fits_file = tmp_path / "AIAsynoptic0304.fits"
     output_file = tmp_path / "AIAsynoptic0304.prominence.txt"
     plot_file = tmp_path / "AIAsynoptic0304.prominence.png"
+    carrington_file = tmp_path / "AIAsynoptic0304.prominence.carrington.png"
     target = TargetConfig(
         url=output_file.resolve().as_uri(),
         options={
             "attachment_path": str(plot_file),
+            "carrington_path": str(carrington_file),
             "metrics_calculator_path": str(calculator_path),
             "metrics_extend_pixels": 12,
             "metrics_intensity_cutoff": 21,
@@ -377,6 +379,8 @@ def test_solar_prominence_metrics_command_uses_target_options(monkeypatch, tmp_p
         str(output_file),
         "-p",
         str(plot_file),
+        "--carrington",
+        str(carrington_file),
     ]
     assert captured["timeout"] == 88.0
 
