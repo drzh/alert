@@ -279,7 +279,10 @@ def test_solar_prominence_provider_alerts_on_high_intensity(tmp_path: Path) -> N
 
     items = solar_prominence_provider.parse_items(target, content)
 
-    assert "Max intensity: 1200" in items[0].message
+    assert "<table>" in items[0].message
+    assert "<tr><td>Max intensity</td><td>1200</td></tr>" in items[0].message
+    assert "<tr><td>Max distance</td><td>10 pixels</td></tr>" in items[0].message
+    assert "<tr><td>Area</td><td>100 pixels</td></tr>" in items[0].message
     assert solar_prominence_provider.should_alert([], items[0], target) is True
 
 

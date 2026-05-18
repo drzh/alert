@@ -6,6 +6,7 @@ import argparse
 import subprocess
 import sys
 from datetime import datetime
+from html import escape
 from pathlib import Path
 from typing import Sequence
 from urllib.parse import urlparse
@@ -38,10 +39,13 @@ class SolarProminenceProvider(AlertProvider):
             AlertItem(
                 item_id=current_time,
                 message=(
-                    f"Solar prominence at {current_time}<br/>"
-                    f"Max intensity: {values.get('intensity_max', '0')}<br/>"
-                    f"Max distance: {values.get('prominence_max_distance_pixels', '0')} pixels<br/>"
-                    f"Area: {values.get('prominence_area_pixels', '0')} pixels"
+                    f"Solar prominence at {escape(current_time)}<br/>"
+                    "<table>"
+                    "<tr><th>Metric</th><th>Value</th></tr>"
+                    f"<tr><td>Max intensity</td><td>{escape(values.get('intensity_max', '0'))}</td></tr>"
+                    f"<tr><td>Max distance</td><td>{escape(values.get('prominence_max_distance_pixels', '0'))} pixels</td></tr>"
+                    f"<tr><td>Area</td><td>{escape(values.get('prominence_area_pixels', '0'))} pixels</td></tr>"
+                    "</table>"
                 ),
                 occurred_at=current_time,
                 metadata=values,
